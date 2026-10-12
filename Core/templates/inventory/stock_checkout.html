@@ -25,7 +25,7 @@
                     <div class="form-group mb-3">
                         <label class="fw-semibold text-dark">Select Retail Store Node</label>
                         <select name="location_id" class="form-select form-control" required>
-                            <option value="">-- Choose Store Location --</option>
+                            <option value="">Select Store Location</option>
                             {% for loc in locations %}
                                 <option value="{{ loc.id }}">{{ loc.name }}</option>
                             {% endfor %}
@@ -37,7 +37,7 @@
                     <div class="form-group mb-3">
                         <label class="fw-semibold text-dark">Select Product</label>
                         <select name="product_id" class="form-select form-control" required>
-                            <option value="">-- Choose Product to Sell --</option>
+                            <option value="">Select Product to Sell</option>
                             {% for product in products %}
                                 <option value="{{ product.id }}">
                                     {{ product.sku }} — {{ product.name }} (${{ product.retail_price }})

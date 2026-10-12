@@ -16,7 +16,7 @@ def role_required(*allowed_roles):
                 messages.warning(request, "Please log in to access this page.")
                 return redirect(f"/login/?next={request.path}")
             
-            if request.user.is_superuser or request.user.role in allowed_roles:
+            if request.user.is_superuser or getattr(request.user, 'role', None) in allowed_roles:
                 return view_func(request, *args, **kwargs)
             
             messages.error(request, "Access Denied: You do not have the required permissions.")

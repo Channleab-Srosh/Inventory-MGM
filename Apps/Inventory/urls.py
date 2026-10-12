@@ -34,8 +34,13 @@ urlpatterns = [
     # Stock History
     path('stock-history/', views.stock_history_view, name='stock-history'),
 
-    # Reports
+    # Reports & Exports
     path('reports/', views.reports_view, name='reports'),
+    path('reports/export/excel/', views.export_reports_excel_view, name='reports-export-excel'),
+    path('reports/export/pdf/', views.export_reports_pdf_view, name='reports-export-pdf'),
+    path('reports/export/csv/', views.export_reports_csv_view, name='reports-export-csv'),
+    path('products/export/excel/', views.export_products_excel_view, name='products-export-excel'),
+    path('products/export/csv/', views.export_products_csv_view, name='products-export-csv'),
 
     # Locations
     path('locations/', views.location_list_view, name='location-list'),

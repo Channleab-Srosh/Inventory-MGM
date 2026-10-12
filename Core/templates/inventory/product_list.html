@@ -11,11 +11,30 @@
         <h5 class="page-header-title">Products</h5>
         <p class="page-header-subtitle">Manage all inventory products and SKUs.</p>
     </div>
-    {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
-    <a href="{% url 'inventory:product-add' %}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Add Product
-    </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download me-1"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <a class="dropdown-item" href="{% url 'inventory:products-export-excel' %}?q={{ query }}&category={{ category_filter }}&status={{ status_filter }}">
+                        <i class="bi bi-file-earmark-excel text-success me-2"></i>Export to Excel (.xlsx)
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'inventory:products-export-csv' %}?q={{ query }}&category={{ category_filter }}&status={{ status_filter }}">
+                        <i class="bi bi-file-earmark-text text-primary me-2"></i>Export to CSV (.csv)
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
+        <a href="{% url 'inventory:product-add' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Add Product
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Filters -->
@@ -102,14 +121,14 @@
                         {% if product.category %}
                         <span class="badge bg-light text-dark border">{{ product.category.name }}</span>
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="badge bg-light text-muted border">General / Unassigned</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if product.supplier %}
                         <span style="font-size:0.855rem;">{{ product.supplier.name }}</span>
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="text-muted fst-italic" style="font-size:0.855rem;">Direct Supplier</span>
                         {% endif %}
                     </td>
                     <td>

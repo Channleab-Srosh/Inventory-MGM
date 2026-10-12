@@ -117,9 +117,11 @@
                     <span class="fw-semibold {% if low_stock_count > 0 %}text-danger{% else %}text-success{% endif %}">{{ low_stock_count }}</span>
                 </div>
                 <div class="mt-3 d-flex flex-column gap-2">
+                    {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
                     <a href="{% url 'inventory:stock-in' %}" class="btn btn-sm btn-primary w-100">
                         <i class="bi bi-arrow-down-circle me-1"></i>New Stock In
                     </a>
+                    {% endif %}
                     <a href="{% url 'inventory:stock-out' %}" class="btn btn-sm btn-outline-danger w-100">
                         <i class="bi bi-arrow-up-circle me-1"></i>New Stock Out
                     </a>
@@ -158,9 +160,11 @@
                             <td><span class="badge bg-danger">{{ item.total_qty }}</span></td>
                             <td><span class="text-muted small">{{ item.threshold }}</span></td>
                             <td>
+                                {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
                                 <a href="{% url 'inventory:stock-in' %}" class="btn btn-sm btn-outline-primary py-0 px-2">
                                     Restock
                                 </a>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

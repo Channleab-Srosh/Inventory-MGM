@@ -37,18 +37,25 @@ class SupplierForm(forms.ModelForm):
 
 
 class ProductForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'category' in self.fields:
+            self.fields['category'].empty_label = 'Select Category'
+        if 'supplier' in self.fields:
+            self.fields['supplier'].empty_label = 'Select Supplier'
+
     class Meta:
         model = Product
         fields = ['sku', 'name', 'category', 'supplier', 'description', 'retail_price', 'cost_price', 'low_stock_alert', 'image', 'status']
         widgets = {
-            'sku': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. CC-001'}),
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Product name'}),
+            'sku': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. SKU-1001'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Wireless Ergonomic Mouse'}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'supplier': forms.Select(attrs={'class': 'form-select'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Product description (optional)'}),
-            'retail_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'low_stock_alert': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'e.g. High-precision 2.4GHz optical mouse with USB nano receiver'}),
+            'retail_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': '29.99'}),
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': '15.00'}),
+            'low_stock_alert': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': '10'}),
             'image': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
         }
@@ -58,12 +65,12 @@ class StockInForm(forms.Form):
     product = forms.ModelChoiceField(
         queryset=Product.objects.filter(status='ACTIVE').order_by('name'),
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_product'}),
-        empty_label='-- Select Product --'
+        empty_label='Select Product'
     )
     location = forms.ModelChoiceField(
         queryset=Location.objects.all(),
         widget=forms.Select(attrs={'class': 'form-select'}),
-        empty_label='-- Select Location --'
+        empty_label='Select Location'
     )
     quantity = forms.IntegerField(
         min_value=1,
@@ -84,12 +91,12 @@ class StockOutForm(forms.Form):
     product = forms.ModelChoiceField(
         queryset=Product.objects.filter(status='ACTIVE').order_by('name'),
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_product'}),
-        empty_label='-- Select Product --'
+        empty_label='Select Product'
     )
     location = forms.ModelChoiceField(
         queryset=Location.objects.all(),
         widget=forms.Select(attrs={'class': 'form-select'}),
-        empty_label='-- Select Location --'
+        empty_label='Select Location'
     )
     quantity = forms.IntegerField(
         min_value=1,

@@ -35,7 +35,7 @@
                     <div class="mb-3">
                         <label class="form-label">Product <span class="text-danger">*</span></label>
                         <select name="product_id" id="product_select" class="form-select" required>
-                            <option value="">-- Select Product --</option>
+                            <option value="">Select Product</option>
                             {% for product in products %}
                             <option value="{{ product.id }}">
                                 {{ product.sku }} — {{ product.name }} (Total: {{ product.total_stock }} units)
@@ -48,7 +48,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Source Location <span class="text-danger">*</span></label>
                             <select name="source_location_id" id="source_location" class="form-select" required>
-                                <option value="">-- From Location --</option>
+                                <option value="">Select Source Location</option>
                                 {% for location in locations %}
                                 <option value="{{ location.id }}">
                                     {{ location.name }}
@@ -60,7 +60,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Destination Location <span class="text-danger">*</span></label>
                             <select name="destination_location_id" id="destination_location" class="form-select" required>
-                                <option value="">-- To Location --</option>
+                                <option value="">Select Destination Location</option>
                                 {% for location in locations %}
                                 <option value="{{ location.id }}">
                                     {{ location.name }}

@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Q
@@ -10,6 +11,11 @@ from Apps.Auth.decorators import role_required
 from .models import Product, Location, ProductLocation, InventoryLog, Supplier, Category
 from .services import InventoryService
 from .forms import CategoryForm, SupplierForm, ProductForm, StockInForm, StockOutForm, LocationForm
+from .exports import (
+    generate_reports_excel, generate_reports_pdf, generate_reports_csv,
+    generate_products_excel, generate_products_csv
+)
+
 
 
 # ─────────────────────────────────────────────
@@ -455,6 +461,7 @@ def stock_history_view(request):
         'selected_type': log_type,
         'date_from': date_from,
         'date_to': date_to,
+        'current_date': timezone.now().date().strftime('%Y-%m-%d'),
         'log_types': InventoryLog.LOG_TYPES,
     }
     return render(request, 'inventory/stock_history.html', context)
@@ -469,10 +476,9 @@ def inventory_logs_view(request):
 
 
 # ─────────────────────────────────────────────
-#  Reports
+#  Reports & Exports
 # ─────────────────────────────────────────────
-@role_required('ADMIN', 'MANAGER')
-def reports_view(request):
+def _get_report_data(request):
     today = timezone.now().date()
     period = request.GET.get('period', 'month')
 
@@ -503,7 +509,7 @@ def reports_view(request):
     total_stock_out = logs_qs.filter(log_type='STOCK_OUT').aggregate(total=Sum('quantity_changed'))['total'] or 0
     total_stock_out = abs(total_stock_out)
 
-    all_products = Product.objects.prefetch_related('stocks').all()
+    all_products = Product.objects.prefetch_related('stocks', 'category', 'supplier').all()
     low_stock_list = []
     out_of_stock_list = []
     for product in all_products:
@@ -513,6 +519,12 @@ def reports_view(request):
         elif total <= product.low_stock_alert:
             low_stock_list.append(product)
 
+    return period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def reports_view(request):
+    period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs = _get_report_data(request)
     context = {
         'period': period,
         'start_date': start_date,
@@ -525,6 +537,81 @@ def reports_view(request):
         'out_of_stock_list': out_of_stock_list[:10],
     }
     return render(request, 'inventory/reports.html', context)
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def export_reports_excel_view(request):
+    period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs = _get_report_data(request)
+    buffer = generate_reports_excel(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="invenstock_report_{start_date}_to_{end_date}.xlsx"'
+    return response
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def export_reports_pdf_view(request):
+    period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs = _get_report_data(request)
+    buffer = generate_reports_pdf(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="invenstock_report_{start_date}_to_{end_date}.pdf"'
+    return response
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def export_reports_csv_view(request):
+    period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs = _get_report_data(request)
+    csv_data = generate_reports_csv(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list)
+    response = HttpResponse(csv_data, content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="invenstock_report_{start_date}_to_{end_date}.csv"'
+    return response
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def export_products_excel_view(request):
+    query = request.GET.get('q', '').strip()
+    category_filter = request.GET.get('category', '')
+    status_filter = request.GET.get('status', '')
+
+    products = Product.objects.prefetch_related('stocks__location').select_related('supplier', 'category').all()
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(sku__icontains=query))
+    if category_filter:
+        products = products.filter(category_id=category_filter)
+    if status_filter:
+        products = products.filter(status=status_filter)
+
+    buffer = generate_products_excel(products)
+    date_str = timezone.now().strftime('%Y%m%d')
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="invenstock_products_{date_str}.xlsx"'
+    return response
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def export_products_csv_view(request):
+    query = request.GET.get('q', '').strip()
+    category_filter = request.GET.get('category', '')
+    status_filter = request.GET.get('status', '')
+
+    products = Product.objects.prefetch_related('stocks__location').select_related('supplier', 'category').all()
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(sku__icontains=query))
+    if category_filter:
+        products = products.filter(category_id=category_filter)
+    if status_filter:
+        products = products.filter(status=status_filter)
+
+    csv_data = generate_products_csv(products)
+    date_str = timezone.now().strftime('%Y%m%d')
+    response = HttpResponse(csv_data, content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="invenstock_products_{date_str}.csv"'
+    return response
 
 
 # ─────────────────────────────────────────────

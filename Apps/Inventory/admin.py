@@ -1,10 +1,17 @@
 from django.contrib import admin
-from .models import Supplier, Location, Product, ProductLocation, InventoryLog
+from .models import Category, Supplier, Location, Product, ProductLocation, InventoryLog
 
 
 class ProductLocationInline(admin.TabularInline):
     model = ProductLocation
     extra = 1
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'status', 'created_at')
+    search_fields = ('name',)
+    list_filter = ('status',)
 
 
 @admin.register(Supplier)

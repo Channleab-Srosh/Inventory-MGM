@@ -22,7 +22,13 @@ class Category(models.Model):
 
     @property
     def product_count(self):
+        if hasattr(self, '_product_count'):
+            return self._product_count
         return self.products.count()
+
+    @product_count.setter
+    def product_count(self, value):
+        self._product_count = value
 
 
 class Supplier(models.Model):
@@ -46,7 +52,13 @@ class Supplier(models.Model):
 
     @property
     def product_count(self):
+        if hasattr(self, '_product_count'):
+            return self._product_count
         return self.products.count()
+
+    @product_count.setter
+    def product_count(self, value):
+        self._product_count = value
 
 
 class Location(models.Model):

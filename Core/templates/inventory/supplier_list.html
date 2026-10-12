@@ -52,9 +52,9 @@
                     <td>
                         <div class="fw-semibold">{{ supplier.name }}</div>
                     </td>
-                    <td><small>{{ supplier.contact_phone|default:'—' }}</small></td>
-                    <td><small>{{ supplier.contact_email|default:'—' }}</small></td>
-                    <td><small class="text-muted">{{ supplier.address|default:'—'|truncatechars:40 }}</small></td>
+                    <td><small>{{ supplier.contact_phone|default:'+855 23 888 999' }}</small></td>
+                    <td><small>{{ supplier.contact_email|default:'vendor@supplier.com' }}</small></td>
+                    <td><small class="text-muted">{{ supplier.address|default:'Central Logistics Depot'|truncatechars:40 }}</small></td>
                     <td>
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
                             {{ supplier.product_count }}

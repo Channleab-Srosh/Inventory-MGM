@@ -48,7 +48,7 @@
                             </div>
                         </div>
                     </td>
-                    <td><small>{{ user.email|default:'—' }}</small></td>
+                    <td><small>{{ user.email|default:'staff@invenstock.com' }}</small></td>
                     <td>
                         {% if user.role == 'ADMIN' %}
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Admin</span>

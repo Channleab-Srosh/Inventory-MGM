@@ -368,10 +368,11 @@
 
         <div class="nav-section-title">Transactions</div>
 
-
+        {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
         <a href="{% url 'inventory:stock-in' %}" class="nav-link {% if request.resolver_match.url_name == 'stock-in' %}active{% endif %}">
             <i class="bi bi-arrow-down-circle"></i> Stock In
         </a>
+        {% endif %}
 
         <a href="{% url 'inventory:stock-out' %}" class="nav-link {% if request.resolver_match.url_name == 'stock-out' %}active{% endif %}">
             <i class="bi bi-arrow-up-circle"></i> Stock Out
@@ -381,9 +382,11 @@
             <i class="bi bi-clock-history"></i> Stock History
         </a>
 
+        {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
         <a href="{% url 'inventory:transfer' %}" class="nav-link {% if request.resolver_match.url_name == 'transfer' %}active{% endif %}">
             <i class="bi bi-arrow-left-right"></i> Stock Transfer
         </a>
+        {% endif %}
 
         <div class="nav-section-title">Analytics</div>
 

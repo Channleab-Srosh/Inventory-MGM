@@ -90,7 +90,7 @@ class RegisterForm(forms.ModelForm):
         label='Password'
     )
     password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm password'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm password', 'id': 'reg_password2'}),
         label='Confirm Password'
     )
 
@@ -104,6 +104,22 @@ class RegisterForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'email@example.com'}),
         }
 
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError("Email address is required.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("This email address is already registered.")
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if not username:
+            raise forms.ValidationError("Username is required.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
+
     def clean_password2(self):
         p1 = self.cleaned_data.get('password1')
         p2 = self.cleaned_data.get('password2')
@@ -116,6 +132,123 @@ class RegisterForm(forms.ModelForm):
         user.set_password(self.cleaned_data['password1'])
         user.role = 'STAFF'   # Self-registered users are always STAFF
         user.status = 'ACTIVE'
+        user.is_active = True
         if commit:
             user.save()
         return user
+
+
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
+
+
+class CustomPasswordResetForm(PasswordResetForm):
+    email = forms.EmailField(
+        label="Email",
+        max_length=254,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter your registered email address',
+            'autocomplete': 'email',
+            'required': 'required'
+        })
+    )
+
+
+class CustomSetPasswordForm(SetPasswordForm):
+    new_password1 = forms.CharField(
+        label="New Password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter new password',
+            'autocomplete': 'new-password',
+            'required': 'required'
+        })
+    )
+    new_password2 = forms.CharField(
+        label="Confirm New Password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm new password',
+            'autocomplete': 'new-password',
+            'required': 'required'
+        })
+    )
+
+
+class ForgotPasswordRequestForm(forms.Form):
+    email = forms.EmailField(
+        label="Email Address",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter your registered email address',
+            'autocomplete': 'email',
+            'required': 'required',
+            'autofocus': 'autofocus'
+        })
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError("Email is required.")
+        if not User.objects.filter(email__iexact=email, is_active=True).exists():
+            raise forms.ValidationError("No active account is associated with this email address.")
+        return email
+
+
+class ForgotPasswordVerifyOtpForm(forms.Form):
+    otp = forms.CharField(
+        max_length=6,
+        min_length=6,
+        label="Verification Code",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control text-center fw-bold fs-3 letter-spacing-lg',
+            'placeholder': '••••••',
+            'maxlength': '6',
+            'autocomplete': 'one-time-code',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+            'autofocus': 'autofocus',
+            'required': 'required'
+        })
+    )
+
+    def clean_otp(self):
+        code = self.cleaned_data.get('otp', '').strip()
+        if not code.isdigit() or len(code) != 6:
+            raise forms.ValidationError("Please enter a valid 6-digit verification code.")
+        return code
+
+
+class ForgotPasswordSetPasswordForm(forms.Form):
+    new_password1 = forms.CharField(
+        label="New Password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter new password',
+            'id': 'otp_new_pass1',
+            'autocomplete': 'new-password',
+            'required': 'required'
+        })
+    )
+    new_password2 = forms.CharField(
+        label="Confirm New Password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm new password',
+            'id': 'otp_new_pass2',
+            'autocomplete': 'new-password',
+            'required': 'required'
+        })
+    )
+
+    def clean_new_password2(self):
+        p1 = self.cleaned_data.get('new_password1')
+        p2 = self.cleaned_data.get('new_password2')
+        if p1 and p2 and p1 != p2:
+            raise forms.ValidationError("Passwords do not match.")
+        if p1 and len(p1) < 6:
+            raise forms.ValidationError("Password must be at least 6 characters.")
+        return p2
+
+
