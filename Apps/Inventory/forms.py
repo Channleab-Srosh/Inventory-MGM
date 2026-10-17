@@ -96,6 +96,14 @@ class StockInForm(forms.Form):
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Enter quantity', 'min': '1'}),
         error_messages={'min_value': 'Quantity must be at least 1 and cannot be negative or zero.'}
     )
+    reference_no = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter reference number (e.g. PO-20261017-001) or leave blank to auto-generate'
+        }),
+        help_text="Optional custom reference number. Leave blank to auto-generate."
+    )
     note = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Optional note about this stock-in'})
@@ -142,3 +150,53 @@ class StockOutForm(forms.Form):
         if qty is not None and qty <= 0:
             raise forms.ValidationError("Quantity must be greater than zero.")
         return qty
+
+
+class StockAdjustmentForm(forms.Form):
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.filter(status='ACTIVE').order_by('name'),
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_product'}),
+        empty_label='Select Product',
+        error_messages={'required': 'Please select a product to audit.'}
+    )
+    location = forms.ModelChoiceField(
+        queryset=Location.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_location'}),
+        empty_label='Select Location',
+        error_messages={'required': 'Please select a location.'}
+    )
+    new_quantity = forms.IntegerField(
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter actual physical count',
+            'min': '0',
+            'id': 'id_new_quantity'
+        }),
+        error_messages={
+            'required': 'Please enter the physical count verified on the shelf.',
+            'min_value': 'Physical count cannot be negative (must be 0 or greater).'
+        },
+        help_text="Enter the actual physical count verified on the shelf (can be 0 or more)."
+    )
+    reference_no = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter reference number (e.g. ADJ-20261017-001) or leave blank to auto-generate'
+        }),
+        help_text="Optional custom reference number. Leave blank to auto-generate."
+    )
+    note = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Reason for adjustment (e.g. Damaged during audit, shelf count discrepancy)'})
+    )
+
+    def clean_new_quantity(self):
+        qty = self.cleaned_data.get('new_quantity')
+        if qty is None:
+            raise forms.ValidationError("Physical count cannot be empty.")
+        if qty < 0:
+            raise forms.ValidationError("Physical count cannot be negative (must be 0 or greater).")
+        return qty
+

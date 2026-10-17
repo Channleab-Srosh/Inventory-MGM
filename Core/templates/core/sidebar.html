@@ -45,6 +45,14 @@
             </a>
         </li>
 
+        <!-- Stock Audit / Manual Check -->
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'stock-adjust' %}active{% endif %}" href="{% url 'inventory:stock-adjust' %}">
+                <i class="menu-icon mdi mdi-clipboard-check"></i>
+                <span class="menu-title">Stock Audit</span>
+            </a>
+        </li>
+
         <!-- Audit Telemetry Logs -->
         <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'logs' %}active{% endif %}" href="{% url 'inventory:logs' %}">

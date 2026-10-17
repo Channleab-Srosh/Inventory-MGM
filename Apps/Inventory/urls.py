@@ -27,9 +27,11 @@ urlpatterns = [
     path('suppliers/<int:pk>/edit/', views.supplier_edit_view, name='supplier-edit'),
     path('suppliers/<int:pk>/delete/', views.supplier_delete_view, name='supplier-delete'),
 
-    # Stock In / Stock Out
+    # Stock Operations
     path('stock-in/', views.stock_in_view, name='stock-in'),
     path('stock-out/', views.stock_out_view, name='stock-out'),
+    path('stock-adjust/', views.stock_adjust_view, name='stock-adjust'),
+    path('api/stock-level/', views.get_stock_level_api, name='api-stock-level'),
 
     # Stock History
     path('stock-history/', views.stock_history_view, name='stock-history'),

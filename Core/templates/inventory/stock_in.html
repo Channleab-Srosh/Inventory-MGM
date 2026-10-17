@@ -72,6 +72,13 @@
                         </div>
                     </div>
 
+
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number (Optional)</label>
+                        {{ form.reference_no }}
+                        {% if form.reference_no.help_text %}<div class="form-text text-muted">{{ form.reference_no.help_text }}</div>{% endif %}
+                    </div>
+
                     <div class="mb-4">
                         <label class="form-label">Note (Optional)</label>
                         {{ form.note }}

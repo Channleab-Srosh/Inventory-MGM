@@ -386,6 +386,10 @@
         <a href="{% url 'inventory:transfer' %}" class="nav-link {% if request.resolver_match.url_name == 'transfer' %}active{% endif %}">
             <i class="bi bi-arrow-left-right"></i> Stock Transfer
         </a>
+
+        <a href="{% url 'inventory:stock-adjust' %}" class="nav-link {% if request.resolver_match.url_name == 'stock-adjust' %}active{% endif %}">
+            <i class="bi bi-clipboard-check"></i> Stock Audit
+        </a>
         {% endif %}
 
         <div class="nav-section-title">Analytics</div>

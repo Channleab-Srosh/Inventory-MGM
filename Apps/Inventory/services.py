@@ -166,11 +166,12 @@ class InventoryService:
 
     @staticmethod
     @transaction.atomic
-    def adjust_stock(product_id, location_id, new_quantity, user=None, reason=None):
+    def adjust_stock(product_id, location_id, new_quantity, user=None, reason=None, reference_no=None):
         if new_quantity < 0:
             raise ValidationError("Stock quantity cannot be negative.")
 
-        reference_no = _generate_reference_no('ADJ')
+        if not reference_no:
+            reference_no = _generate_reference_no('ADJ')
 
         product = Product.objects.get(pk=product_id)
         location = Location.objects.get(pk=location_id)

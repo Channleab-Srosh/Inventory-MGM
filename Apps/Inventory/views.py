@@ -9,7 +9,7 @@ from datetime import timedelta
 from Apps.Auth.decorators import role_required
 from .models import Product, Location, ProductLocation, InventoryLog, Supplier, Category
 from .services import InventoryService
-from .forms import CategoryForm, SupplierForm, ProductForm, StockInForm, StockOutForm, LocationForm
+from .forms import CategoryForm, SupplierForm, ProductForm, StockInForm, StockOutForm, LocationForm, StockAdjustmentForm
 from .exports import (
     generate_reports_excel, generate_reports_pdf, generate_reports_csv,
     generate_products_excel, generate_products_csv
@@ -324,6 +324,7 @@ def stock_in_view(request):
             product = form.cleaned_data['product']
             location = form.cleaned_data['location']
             quantity = form.cleaned_data['quantity']
+            reference_no = form.cleaned_data.get('reference_no', '').strip() or None
             note = form.cleaned_data.get('note', '')
             try:
                 result = InventoryService.intake_stock(
@@ -332,6 +333,7 @@ def stock_in_view(request):
                     quantity=quantity,
                     user=request.user,
                     reason=note,
+                    reference_no=reference_no,
                 )
                 messages.success(
                     request,
@@ -386,6 +388,66 @@ def stock_out_view(request):
 
     context = {'form': form}
     return render(request, 'inventory/stock_out.html', context)
+
+
+# ─────────────────────────────────────────────
+#  Stock Audit / Adjustment (MANUAL CHECK)
+# ─────────────────────────────────────────────
+@role_required('ADMIN', 'MANAGER')
+def stock_adjust_view(request):
+    form = StockAdjustmentForm()
+    if request.method == 'POST':
+        form = StockAdjustmentForm(request.POST)
+        if form.is_valid():
+            product = form.cleaned_data['product']
+            location = form.cleaned_data['location']
+            new_quantity = form.cleaned_data['new_quantity']
+            reference_no = form.cleaned_data.get('reference_no', '').strip() or None
+            note = form.cleaned_data.get('note', '').strip()
+            try:
+                result = InventoryService.adjust_stock(
+                    product_id=product.id,
+                    location_id=location.id,
+                    new_quantity=new_quantity,
+                    user=request.user,
+                    reason=note,
+                    reference_no=reference_no,
+                )
+                diff = result['difference']
+                diff_str = f"+{diff}" if diff > 0 else f"{diff}"
+                messages.success(
+                    request,
+                    f"Stock Audit recorded for '{product.name}' at {location.name}. "
+                    f"Adjusted to {result['new_quantity']} units (Net change: {diff_str}). "
+                    f"Reference: {result['log'].reference_no}"
+                )
+                return redirect('inventory:stock-adjust')
+            except ValidationError as e:
+                messages.error(request, str(e.message if hasattr(e, 'message') else e))
+            except Exception as e:
+                messages.error(request, f"Adjustment failed: {str(e)}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+
+    context = {'form': form}
+    return render(request, 'inventory/stock_adjust.html', context)
+
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
+def get_stock_level_api(request):
+    """AJAX endpoint to get current quantity of a product at a specific location."""
+    product_id = request.GET.get('product_id')
+    location_id = request.GET.get('location_id')
+    from django.http import JsonResponse
+    if not product_id or not location_id:
+        return JsonResponse({'quantity': 0})
+    try:
+        stock = ProductLocation.objects.filter(product_id=product_id, location_id=location_id).first()
+        qty = stock.quantity if stock else 0
+        return JsonResponse({'quantity': qty})
+    except Exception:
+        return JsonResponse({'quantity': 0})
+
 
 
 # ─────────────────────────────────────────────

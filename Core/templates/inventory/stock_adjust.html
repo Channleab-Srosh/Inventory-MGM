@@ -1,0 +1,206 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Stock Audit / Adjustment{% endblock %}
+{% block page_title %}Stock Audit & Adjustment{% endblock %}
+{% block page_subtitle %}Reconcile physical inventory counts & record manual checks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h5 class="page-header-title">Stock Audit & Adjustment</h5>
+    </div>
+    <a href="{% url 'inventory:stock-history' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-clock-history me-1"></i> View History
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <div style="width:36px;height:36px;background:#fff8e1;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                    <i class="bi bi-clipboard-check text-warning fs-5"></i>
+                </div>
+                <div>
+                    <h6 class="fw-semibold mb-0">Stock Audit Form</h6>
+                    <p class="text-muted mb-0" style="font-size:0.78rem;">Physical shelf audit reconciliation with automatic discrepancy tracking</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="stockAdjustForm">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Product <span class="text-danger">*</span></label>
+                        {{ form.product }}
+                        {% if form.product.errors %}<div class="text-danger small mt-1">{{ form.product.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Location <span class="text-danger">*</span></label>
+                        {{ form.location }}
+                        {% if form.location.errors %}<div class="text-danger small mt-1">{{ form.location.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Actual Physical Count <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-warning-subtle text-warning-emphasis border-warning-subtle">
+                                <i class="bi bi-clipboard2-check"></i>
+                            </span>
+                            {{ form.new_quantity }}
+                        </div>
+                        <div class="form-text text-muted">{{ form.new_quantity.help_text }}</div>
+                        <div class="text-danger small mt-1" id="qtyClientError" style="display:none;"></div>
+                        {% if form.new_quantity.errors %}<div class="text-danger small mt-1">{{ form.new_quantity.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <!-- Stock preview / Reconciliation calculation box -->
+                    <div class="alert alert-light border rounded-3 py-2 px-3 mb-3" id="auditPreview" style="display:none; background-color: #f8f9fa;">
+                        <div class="d-flex justify-content-between py-1">
+                            <span class="text-muted small">Current Recorded Stock:</span>
+                            <span class="fw-semibold" id="previewSystem">—</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-1">
+                            <span class="text-muted small">Physical Counted:</span>
+                            <span class="fw-semibold" id="previewCounted">—</span>
+                        </div>
+                        <hr class="my-1">
+                        <div class="d-flex justify-content-between py-1 align-items-center">
+                            <span class="fw-medium small">Net Adjustment (Log Discrepancy):</span>
+                            <span class="badge px-2 py-1" id="previewDiffBadge">—</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Reason / Audit Notes (Optional)</label>
+                        {{ form.note }}
+                        <div class="form-text text-muted">e.g., Weekly physical stock audit, damaged units discarded, floor inventory recount.</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'inventory:dashboard' %}" class="btn btn-light">Cancel</a>
+                        <button type="submit" class="btn btn-warning text-dark fw-semibold">
+                            <i class="bi bi-check2-circle me-1"></i> Apply Audit Adjustment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSelect = document.getElementById('id_product');
+    const locationSelect = document.getElementById('id_location');
+    const newQtyInput = document.getElementById('id_new_quantity');
+    const auditPreview = document.getElementById('auditPreview');
+    const previewSystem = document.getElementById('previewSystem');
+    const previewCounted = document.getElementById('previewCounted');
+    const previewDiffBadge = document.getElementById('previewDiffBadge');
+
+    let currentSystemQty = null;
+
+    function fetchCurrentStock() {
+        const prodId = productSelect.value;
+        const locId = locationSelect.value;
+
+        if (prodId && locId) {
+            fetch(`{% url 'inventory:api-stock-level' %}?product_id=${prodId}&location_id=${locId}`)
+                .then(res => res.json())
+                .then(data => {
+                    currentSystemQty = parseInt(data.quantity) || 0;
+                    previewSystem.textContent = currentSystemQty + ' units';
+                    recalculateDiff();
+                })
+                .catch(() => {
+                    currentSystemQty = 0;
+                    previewSystem.textContent = '0 units';
+                    recalculateDiff();
+                });
+        } else {
+            currentSystemQty = null;
+            previewSystem.textContent = '—';
+            recalculateDiff();
+        }
+    }
+
+    function recalculateDiff() {
+        const rawVal = newQtyInput.value.trim();
+        const errorDiv = document.getElementById('qtyClientError');
+
+        if (rawVal !== '' && parseInt(rawVal) < 0) {
+            newQtyInput.classList.add('is-invalid');
+            if (errorDiv) {
+                errorDiv.textContent = 'Physical count cannot be negative (must be 0 or greater).';
+                errorDiv.style.display = 'block';
+            }
+            if (auditPreview) auditPreview.style.display = 'none';
+            return;
+        } else {
+            newQtyInput.classList.remove('is-invalid');
+            if (errorDiv) errorDiv.style.display = 'none';
+        }
+
+        if (currentSystemQty !== null && rawVal !== '') {
+            const counted = parseInt(rawVal);
+            if (!isNaN(counted) && counted >= 0) {
+                auditPreview.style.display = 'block';
+                previewCounted.textContent = counted + ' units';
+                const diff = counted - currentSystemQty;
+
+                if (diff === 0) {
+                    previewDiffBadge.className = 'badge bg-secondary';
+                    previewDiffBadge.textContent = '0 (No change)';
+                } else if (diff > 0) {
+                    previewDiffBadge.className = 'badge bg-success';
+                    previewDiffBadge.textContent = `+${diff} units (Surplus found)`;
+                } else {
+                    previewDiffBadge.className = 'badge bg-danger';
+                    previewDiffBadge.textContent = `${diff} units (Loss / Shrinkage)`;
+                }
+                return;
+            }
+        }
+        if (currentSystemQty !== null) {
+            auditPreview.style.display = 'block';
+            previewCounted.textContent = '—';
+            previewDiffBadge.className = 'badge bg-secondary';
+            previewDiffBadge.textContent = '—';
+        } else {
+            auditPreview.style.display = 'none';
+        }
+    }
+
+    productSelect.addEventListener('change', fetchCurrentStock);
+    locationSelect.addEventListener('change', fetchCurrentStock);
+    newQtyInput.addEventListener('input', recalculateDiff);
+
+    // Initial check if values are prepopulated
+    if (productSelect.value && locationSelect.value) {
+        fetchCurrentStock();
+    }
+
+    // Form submit client-side validation
+    const form = document.getElementById('stockAdjustForm');
+    form.addEventListener('submit', function(e) {
+        const val = parseInt(newQtyInput.value);
+        if (isNaN(val) || val < 0) {
+            e.preventDefault();
+            newQtyInput.classList.add('is-invalid');
+            const errorDiv = document.getElementById('qtyClientError');
+            if (errorDiv) {
+                errorDiv.textContent = 'Please enter a valid count of 0 or greater.';
+                errorDiv.style.display = 'block';
+            }
+            newQtyInput.focus();
+        }
+    });
+});
+</script>
+{% endblock %}

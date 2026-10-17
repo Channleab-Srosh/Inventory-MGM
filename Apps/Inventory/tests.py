@@ -318,3 +318,74 @@ class StockOutCustomReferenceNumberTests(TestCase):
         self.assertIsNotNone(log)
         self.assertTrue(log.reference_no.startswith('SO-'))
 
+
+class StockAuditAdjustmentTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username='adj_admin',
+            email='adj_admin@example.com',
+            password='AdminPassword123!',
+            role='ADMIN'
+        )
+        self.manager = User.objects.create_user(
+            username='adj_manager',
+            email='adj_manager@example.com',
+            password='ManagerPassword123!',
+            role='MANAGER'
+        )
+        self.staff = User.objects.create_user(
+            username='adj_staff',
+            email='adj_staff@example.com',
+            password='StaffPassword123!',
+            role='STAFF'
+        )
+        self.location = Location.objects.create(name='Audit Warehouse', location_type='WAREHOUSE')
+        self.product = Product.objects.create(name='Audit Product', status='ACTIVE')
+        ProductLocation.objects.create(product=self.product, location=self.location, quantity=25)
+
+    def test_stock_adjust_successful(self):
+        client = Client()
+        client.force_login(self.manager)
+
+        response = client.post(reverse('inventory:stock-adjust'), {
+            'product': self.product.id,
+            'location': self.location.id,
+            'new_quantity': 22,
+            'reference_no': 'ADJ-AUDIT-01',
+            'note': 'Found 3 broken units during shelf audit'
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        stock = ProductLocation.objects.get(product=self.product, location=self.location)
+        self.assertEqual(stock.quantity, 22)
+
+        log = InventoryLog.objects.get(reference_no='ADJ-AUDIT-01')
+        self.assertEqual(log.log_type, 'ADJUSTMENT')
+        self.assertEqual(log.quantity_changed, -3)
+        self.assertEqual(log.performed_by, self.manager)
+
+    def test_stock_adjust_negative_validation_rejected(self):
+        client = Client()
+        client.force_login(self.admin)
+
+        response = client.post(reverse('inventory:stock-adjust'), {
+            'product': self.product.id,
+            'location': self.location.id,
+            'new_quantity': -5,
+            'note': 'Invalid count'
+        })
+
+        # Form should be invalid and not update stock
+        stock = ProductLocation.objects.get(product=self.product, location=self.location)
+        self.assertEqual(stock.quantity, 25)
+        self.assertFalse(InventoryLog.objects.filter(quantity_changed=-30).exists())
+
+    def test_staff_cannot_access_stock_adjust(self):
+        client = Client()
+        client.force_login(self.staff)
+
+        # GET request by staff should be forbidden / 403
+        response = client.get(reverse('inventory:stock-adjust'))
+        self.assertEqual(response.status_code, 403)
+
+
