@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Q
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
@@ -117,6 +116,7 @@ def product_list_view(request):
         'products': page_obj,
         'query': query,
         'category_filter': category_filter,
+        'category_filter_id': int(category_filter) if category_filter else None,
         'status_filter': status_filter,
         'categories': categories,
         'status_choices': Product.STATUS_CHOICES,
@@ -324,7 +324,6 @@ def stock_in_view(request):
             product = form.cleaned_data['product']
             location = form.cleaned_data['location']
             quantity = form.cleaned_data['quantity']
-            reference_no = form.cleaned_data.get('reference_no', '')
             note = form.cleaned_data.get('note', '')
             try:
                 result = InventoryService.intake_stock(
@@ -333,17 +332,18 @@ def stock_in_view(request):
                     quantity=quantity,
                     user=request.user,
                     reason=note,
-                    reference_no=reference_no
                 )
                 messages.success(
                     request,
-                    f"Stock In recorded. {product.name} updated to {result['current_quantity']} units at {location.name}."
+                    f"Stock In recorded. {product.name} updated to {result['current_quantity']} units at {location.name}. "
+                    f"Reference: {result['log'].reference_no}"
                 )
                 return redirect('inventory:stock-in')
             except ValidationError as e:
                 messages.error(request, str(e.message if hasattr(e, 'message') else e))
         else:
             messages.error(request, "Please correct the errors below.")
+
 
     context = {'form': form}
     return render(request, 'inventory/stock_in.html', context)
@@ -361,7 +361,7 @@ def stock_out_view(request):
             product = form.cleaned_data['product']
             location = form.cleaned_data['location']
             quantity = form.cleaned_data['quantity']
-            reference_no = form.cleaned_data.get('reference_no', '')
+            reference_no = form.cleaned_data.get('reference_no', '').strip() or None
             note = form.cleaned_data.get('note', '')
             try:
                 result = InventoryService.checkout_stock(
@@ -370,17 +370,19 @@ def stock_out_view(request):
                     quantity=quantity,
                     user=request.user,
                     reason=note,
-                    reference_no=reference_no
+                    reference_no=reference_no,
                 )
                 messages.success(
                     request,
-                    f"Stock Out recorded. {product.name} remaining stock: {result['remaining_quantity']} units at {location.name}."
+                    f"Stock Out recorded. {product.name} remaining stock: {result['remaining_quantity']} units at {location.name}. "
+                    f"Reference: {result['log'].reference_no}"
                 )
                 return redirect('inventory:stock-out')
             except ValidationError as e:
                 messages.error(request, str(e.message if hasattr(e, 'message') else e))
         else:
             messages.error(request, "Please correct the errors below.")
+
 
     context = {'form': form}
     return render(request, 'inventory/stock_out.html', context)
@@ -405,6 +407,8 @@ def stock_transfer_view(request):
             if not all([product_id, source_id, dest_id, quantity_str]):
                 raise ValidationError("All fields are required.")
             quantity = int(quantity_str)
+            if quantity <= 0:
+                raise ValidationError("Transfer quantity must be greater than zero.")
             result = InventoryService.transfer_stock(
                 product_id=product_id,
                 source_location_id=source_id,
@@ -434,8 +438,21 @@ def stock_transfer_view(request):
 def stock_history_view(request):
     query = request.GET.get('q', '').strip()
     log_type = request.GET.get('type', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
+    show_all = request.GET.get('all') == '1'
+    today_str = timezone.localdate().strftime('%Y-%m-%d')
+
+    if show_all:
+        date_from = ''
+        date_to = ''
+    else:
+        date_from = request.GET.get('date_from', '').strip()
+        date_to = request.GET.get('date_to', '').strip()
+
+        # Catch current date if user did not select
+        if not date_from:
+            date_from = today_str
+        if not date_to:
+            date_to = today_str
 
     logs = InventoryLog.objects.select_related(
         'product', 'source_location', 'destination_location', 'performed_by'
@@ -461,7 +478,8 @@ def stock_history_view(request):
         'selected_type': log_type,
         'date_from': date_from,
         'date_to': date_to,
-        'current_date': timezone.now().date().strftime('%Y-%m-%d'),
+        'show_all': show_all,
+        'current_date': today_str,
         'log_types': InventoryLog.LOG_TYPES,
     }
     return render(request, 'inventory/stock_history.html', context)
@@ -479,7 +497,7 @@ def inventory_logs_view(request):
 #  Reports & Exports
 # ─────────────────────────────────────────────
 def _get_report_data(request):
-    today = timezone.now().date()
+    today = timezone.localdate()
     period = request.GET.get('period', 'month')
 
     if period == 'today':
@@ -489,15 +507,15 @@ def _get_report_data(request):
     elif period == 'month':
         start_date = today - timedelta(days=30)
     else:
-        # custom date range
-        start_date = request.GET.get('date_from', str(today - timedelta(days=30)))
-        end_date = request.GET.get('date_to', str(today))
+        # custom date range - default to current date if user not select
+        start_date = request.GET.get('date_from', '').strip() or str(today)
+        end_date = request.GET.get('date_to', '').strip() or str(today)
         try:
             from datetime import datetime
             start_date = datetime.strptime(str(start_date), '%Y-%m-%d').date()
             end_date = datetime.strptime(str(end_date), '%Y-%m-%d').date()
         except (ValueError, TypeError):
-            start_date = today - timedelta(days=30)
+            start_date = today
             end_date = today
 
     if period != 'custom':
@@ -563,7 +581,7 @@ def export_reports_pdf_view(request):
 @role_required('ADMIN', 'MANAGER', 'STAFF')
 def export_reports_csv_view(request):
     period, start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs = _get_report_data(request)
-    csv_data = generate_reports_csv(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list)
+    csv_data = generate_reports_csv(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs)
     response = HttpResponse(csv_data, content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="invenstock_report_{start_date}_to_{end_date}.csv"'
     return response

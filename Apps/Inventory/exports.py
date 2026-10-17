@@ -376,36 +376,83 @@ def generate_reports_pdf(start_date, end_date, total_stock_in, total_stock_out, 
     return buffer
 
 
-def generate_reports_csv(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list):
+def generate_reports_csv(start_date, end_date, total_stock_in, total_stock_out, low_stock_list, out_of_stock_list, logs_qs=None):
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
-    writer.writerow(["InvenStock Analytics Report"])
-    writer.writerow(["Period Start", start_date])
-    writer.writerow(["Period End", end_date])
-    writer.writerow(["Generated At", timezone.now().strftime("%Y-%m-%d %H:%M:%S")])
+    # --- SECTION 1: Summary ---
+    writer.writerow(["InvenStock — Inventory Analytics Report"])
+    writer.writerow([f"Period: {start_date} to {end_date} | Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"])
     writer.writerow([])
-    writer.writerow(["Metric", "Value"])
-    writer.writerow(["Total Stock In", total_stock_in])
-    writer.writerow(["Total Stock Out", total_stock_out])
-    writer.writerow(["Net Inventory Change", total_stock_in - total_stock_out])
-    writer.writerow(["Low Stock Count", len(low_stock_list)])
-    writer.writerow(["Out of Stock Count", len(out_of_stock_list)])
+    writer.writerow(["Key Metric", "Value", "Notes"])
+    summary_rows = [
+        ("Total Stock Received (Stock In)", total_stock_in, "Units taken into inventory during selected period"),
+        ("Total Stock Dispatched (Stock Out)", total_stock_out, "Units checked out / sold during selected period"),
+        ("Net Stock Movement", total_stock_in - total_stock_out, "Difference between inbound and outbound units"),
+        ("Low Stock Products Count", len(low_stock_list), "Products at or below their alert threshold"),
+        ("Out of Stock Products Count", len(out_of_stock_list), "Products currently having zero inventory"),
+    ]
+    for item, val, note in summary_rows:
+        writer.writerow([item, val, note])
     writer.writerow([])
 
-    writer.writerow(["Low Stock Products"])
-    writer.writerow(["SKU", "Product Name", "Category", "Current Stock", "Min Alert"])
+    # --- SECTION 2: Low Stock Alerts ---
+    writer.writerow(["Low Stock Alerts"])
+    writer.writerow([f"Products requiring replenishment as of {timezone.now().strftime('%Y-%m-%d')}"])
+    writer.writerow(["SKU", "Product Name", "Category", "Supplier", "Current Stock", "Min Alert Level", "Deficit Units"])
     for p in low_stock_list:
-        cat_name = p.category.name if p.category else ""
-        writer.writerow([p.sku, p.name, cat_name, p.total_stock, p.low_stock_alert])
+        tot = p.total_stock
+        deficit = max(0, p.low_stock_alert - tot)
+        cat_name = p.category.name if p.category else "—"
+        sup_name = p.supplier.name if p.supplier else "—"
+        writer.writerow([p.sku, p.name, cat_name, sup_name, tot, p.low_stock_alert, deficit])
     writer.writerow([])
 
+    # --- SECTION 3: Out of Stock ---
     writer.writerow(["Out of Stock Products"])
-    writer.writerow(["SKU", "Product Name", "Category", "Supplier"])
+    writer.writerow([f"Zero-quantity products as of {timezone.now().strftime('%Y-%m-%d')}"])
+    writer.writerow(["SKU", "Product Name", "Category", "Supplier", "Retail Price", "Cost Price", "Status"])
     for p in out_of_stock_list:
-        cat_name = p.category.name if p.category else ""
-        sup_name = p.supplier.name if p.supplier else ""
-        writer.writerow([p.sku, p.name, cat_name, sup_name])
+        cat_name = p.category.name if p.category else "—"
+        sup_name = p.supplier.name if p.supplier else "—"
+        writer.writerow([
+            p.sku,
+            p.name,
+            cat_name,
+            sup_name,
+            f"${float(p.retail_price):.2f}",
+            f"${float(p.cost_price):.2f}",
+            p.get_status_display()
+        ])
+    writer.writerow([])
+
+    # --- SECTION 4: Stock Transactions Audit ---
+    writer.writerow(["Inventory Movements Audit Log"])
+    writer.writerow([f"Transactions recorded between {start_date} and {end_date}"])
+    headers_logs = [
+        "Date / Time", "Reference", "Type", "Product SKU", "Product Name",
+        "Qty Changed", "From Location", "To Location", "Performed By", "Reason"
+    ]
+    writer.writerow(headers_logs)
+    if logs_qs is not None:
+        qs = logs_qs.select_related('product', 'source_location', 'destination_location', 'performed_by').order_by('-created_at') if hasattr(logs_qs, 'select_related') else logs_qs
+        for log in qs:
+            dt_str = log.created_at.strftime("%Y-%m-%d %H:%M")
+            src_name = log.source_location.name if log.source_location else "—"
+            dst_name = log.destination_location.name if log.destination_location else "—"
+            actor = log.performed_by.username if log.performed_by else "System"
+            writer.writerow([
+                dt_str,
+                log.reference_no or "—",
+                log.get_log_type_display(),
+                log.product.sku,
+                log.product.name,
+                log.quantity_changed,
+                src_name,
+                dst_name,
+                actor,
+                log.reason or "—"
+            ])
 
     return buffer.getvalue()
 
@@ -482,27 +529,34 @@ def generate_products_csv(products_qs):
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
+    # Title block (matching Excel export format)
+    writer.writerow(["InvenStock — Products Catalog & Stock Levels"])
+    writer.writerow([f"Exported: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')} | Total items: {products_qs.count()}"])
+    writer.writerow([])  # blank spacer row
+
     headers = [
         "SKU", "Product Name", "Category", "Supplier",
-        "Retail Price", "Cost Price", "Current Stock",
+        "Retail Price ($)", "Cost Price ($)", "Current Stock",
         "Low Stock Alert", "Stock Status", "Status"
     ]
     writer.writerow(headers)
 
     for p in products_qs:
-        cat_name = p.category.name if p.category else ""
-        sup_name = p.supplier.name if p.supplier else ""
+        cat_name = p.category.name if p.category else "—"
+        sup_name = p.supplier.name if p.supplier else "—"
+        tot = p.total_stock
+        stock_status = p.stock_status.replace('_', ' ').title()
         writer.writerow([
             p.sku,
             p.name,
             cat_name,
             sup_name,
-            f"{p.retail_price:.2f}",
-            f"{p.cost_price:.2f}",
-            p.total_stock,
+            f"{float(p.retail_price):.2f}",
+            f"{float(p.cost_price):.2f}",
+            tot,
             p.low_stock_alert,
-            p.stock_status,
-            p.status
+            stock_status,
+            p.get_status_display()
         ])
 
     return buffer.getvalue()

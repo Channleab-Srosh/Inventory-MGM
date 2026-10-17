@@ -1,13 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from Apps.Auth.decorators import role_required
 
+
+@role_required('ADMIN', 'MANAGER', 'STAFF')
 def dashboard(request):
-    role = 'Admin'
-    title = 'Good Morning'
-    desc = 'Your performance summary this week'
-
-    context = {
-        'role': role,
-        'title': title,
-        'desc': desc
-    }
-    return render(request, 'core/dashboard.html', context)
+    return redirect('inventory:dashboard')

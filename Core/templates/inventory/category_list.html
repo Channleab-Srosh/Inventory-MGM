@@ -21,13 +21,16 @@
 <!-- Search Filter -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="d-flex gap-2 align-items-center">
+        <form method="GET" class="d-flex gap-2 align-items-center" id="categoryFilterForm">
             <div class="input-group input-group-sm" style="max-width:360px;">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search category name...">
+                <input type="text" name="q" id="categorySearchInput" value="{{ query }}" class="form-control" placeholder="Search category name..." autocomplete="off">
             </div>
-            <button type="submit" class="btn btn-primary btn-sm">Search</button>
-            {% if query %}<a href="{% url 'inventory:category-list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>{% endif %}
+            {% if query %}
+            <a href="{% url 'inventory:category-list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-x-lg me-1"></i>Clear
+            </a>
+            {% endif %}
         </form>
     </div>
 </div>
@@ -43,7 +46,9 @@
                     <th>Products</th>
                     <th>Status</th>
                     <th>Created</th>
+                    {% if request.user.role != 'STAFF' %}
                     <th>Actions</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -69,8 +74,8 @@
                         {% endif %}
                     </td>
                     <td><small class="text-muted">{{ category.created_at|date:"M d, Y" }}</small></td>
+                    {% if request.user.role != 'STAFF' %}
                     <td>
-                        {% if request.user.role != 'STAFF' %}
                         <div class="d-flex gap-1">
                             <button type="button" class="btn btn-sm btn-outline-secondary"
                                     onclick="openEditModal({{ category.pk }}, '{{ category.name|escapejs }}', '{{ category.description|default:''|escapejs }}', '{{ category.status }}')">
@@ -83,12 +88,12 @@
                             </button>
                             {% endif %}
                         </div>
-                        {% endif %}
                     </td>
+                    {% endif %}
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center py-5 text-muted">
+                    <td colspan="{% if request.user.role != 'STAFF' %}7{% else %}6{% endif %}" class="text-center py-5 text-muted">
                         <i class="bi bi-tags fs-1 d-block mb-2"></i>
                         No categories yet.
                     </td>
@@ -206,5 +211,21 @@ function confirmDeleteCategory(pk, name) {
     document.getElementById('deleteCategoryForm').action = '/categories/' + pk + '/delete/';
     new bootstrap.Modal(document.getElementById('deleteCategoryModal')).show();
 }
+
+// ── Auto-filter ──────────────────────────────────────────────────────────────
+(function () {
+    const form   = document.getElementById('categoryFilterForm');
+    const search = document.getElementById('categorySearchInput');
+    let debounceTimer;
+
+    if (search) {
+        search.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    }
+})();
 </script>
 {% endblock %}

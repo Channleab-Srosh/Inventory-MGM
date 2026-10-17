@@ -21,13 +21,16 @@
 <!-- Search Bar -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="d-flex gap-2">
+        <form method="GET" class="d-flex gap-2 align-items-center" id="supplierFilterForm">
             <div class="input-group input-group-sm" style="max-width:360px;">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search supplier name or email...">
+                <input type="text" name="q" id="supplierSearchInput" value="{{ query }}" class="form-control" placeholder="Search supplier name or email..." autocomplete="off">
             </div>
-            <button type="submit" class="btn btn-primary btn-sm">Search</button>
-            {% if query %}<a href="{% url 'inventory:supplier-list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>{% endif %}
+            {% if query %}
+            <a href="{% url 'inventory:supplier-list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-x-lg me-1"></i>Clear
+            </a>
+            {% endif %}
         </form>
     </div>
 </div>
@@ -131,5 +134,21 @@ function confirmDeleteSupplier(pk, name) {
     document.getElementById('deleteSupplierForm').action = '/suppliers/' + pk + '/delete/';
     new bootstrap.Modal(document.getElementById('deleteSupplierModal')).show();
 }
+
+// ── Auto-filter ──────────────────────────────────────────────────────────────
+(function () {
+    const form   = document.getElementById('supplierFilterForm');
+    const search = document.getElementById('supplierSearchInput');
+    let debounceTimer;
+
+    if (search) {
+        search.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    }
+})();
 </script>
 {% endblock %}

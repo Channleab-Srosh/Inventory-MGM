@@ -1,0 +1,213 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}User: {{ user_obj.username }}{% endblock %}
+{% block page_title %}User Details{% endblock %}
+{% block page_subtitle %}Admin — view user account profile and activity telemetry{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <a href="{% url 'auth:user-list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Back to Users
+        </a>
+        <div>
+            <h5 class="page-header-title mb-0">{{ user_obj.get_full_name|default:user_obj.username }}</h5>
+            <small class="text-muted">@{{ user_obj.username }} &bull; Member since {{ user_obj.date_joined|date:"M d, Y" }}</small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'auth:user-edit' user_obj.pk %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i> Edit User
+        </a>
+        {% if user_obj != request.user %}
+        <form method="POST" action="{% url 'auth:user-toggle-status' user_obj.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm {% if user_obj.status == 'ACTIVE' %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                <i class="bi bi-{% if user_obj.status == 'ACTIVE' %}pause-circle{% else %}play-circle{% endif %} me-1"></i>
+                {% if user_obj.status == 'ACTIVE' %}Deactivate{% else %}Activate{% endif %}
+            </button>
+        </form>
+        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteDetailUserModal">
+            <i class="bi bi-trash me-1"></i> Delete
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- User Profile Summary Column -->
+    <div class="col-lg-4 col-md-5">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body text-center p-4">
+                {% if user_obj.profile_picture %}
+                    <img src="{{ user_obj.profile_picture.url }}" alt="{{ user_obj.username }}" class="rounded-circle mb-3 shadow-sm" style="width:96px;height:96px;object-fit:cover;">
+                {% else %}
+                    <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3 shadow-sm"
+                         style="width:96px;height:96px;background:#e8f0fe;font-size:2.2rem;font-weight:700;color:#1a73e8;">
+                        {{ user_obj.username|first|upper }}
+                    </div>
+                {% endif %}
+                <h5 class="fw-bold mb-1">{{ user_obj.get_full_name|default:user_obj.username }}</h5>
+                <p class="text-muted small mb-2">@{{ user_obj.username }}</p>
+
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                    {% if user_obj.role == 'ADMIN' %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Admin</span>
+                    {% elif user_obj.role == 'MANAGER' %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">Manager</span>
+                    {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Staff</span>
+                    {% endif %}
+
+                    {% if user_obj.status == 'ACTIVE' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Active</span>
+                    {% else %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Inactive</span>
+                    {% endif %}
+                </div>
+
+                <div class="border-top pt-3 text-start small">
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">User ID</span>
+                        <span class="fw-semibold">#{{ user_obj.pk }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Email</span>
+                        <span class="fw-semibold text-break">{{ user_obj.email|default:'Not provided' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Phone</span>
+                        <span class="fw-semibold">{{ user_obj.phone|default:'Not provided' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Superuser</span>
+                        <span class="fw-semibold">{% if user_obj.is_superuser %}<i class="bi bi-shield-fill-check text-success"></i> Yes{% else %}No{% endif %}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Last Login</span>
+                        <span class="fw-semibold">{{ user_obj.last_login|date:"M d, Y H:i"|default:'Never' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2">
+                        <span class="text-muted">Date Joined</span>
+                        <span class="fw-semibold">{{ user_obj.date_joined|date:"M d, Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory Telemetry Quick Stat -->
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4 text-center">
+                <div style="width:48px;height:48px;background:#e7f5ea;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+                    <i class="bi bi-activity text-success fs-4"></i>
+                </div>
+                <h3 class="fw-bold mb-0">{{ total_logs }}</h3>
+                <p class="text-muted small mb-0">Total Inventory Operations Recorded</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Activity Telemetry Column -->
+    <div class="col-lg-8 col-md-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+                <h6 class="fw-bold mb-0">
+                    <i class="bi bi-clock-history me-1 text-primary"></i> Recent Inventory Activity
+                </h6>
+                <span class="badge bg-light text-muted fw-normal">Latest 15 events</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Locations</th>
+                            <th>Date & Time</th>
+                            <th>Ref No.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td>
+                                {% if log.log_type == 'STOCK_IN' %}
+                                    <span class="badge bg-success-subtle text-success">Stock In</span>
+                                {% elif log.log_type == 'STOCK_OUT' %}
+                                    <span class="badge bg-danger-subtle text-danger">Stock Out</span>
+                                {% elif log.log_type == 'TRANSFER' %}
+                                    <span class="badge bg-info-subtle text-info">Transfer</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">{{ log.log_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-semibold" style="font-size:0.875rem;">{{ log.product.name }}</div>
+                                <small class="text-muted">SKU: {{ log.product.sku }}</small>
+                            </td>
+                            <td>
+                                <span class="fw-bold {% if log.log_type == 'STOCK_IN' %}text-success{% elif log.log_type == 'STOCK_OUT' %}text-danger{% else %}text-primary{% endif %}">
+                                    {% if log.log_type == 'STOCK_IN' %}+{% elif log.log_type == 'STOCK_OUT' %}-{% endif %}{{ log.quantity_changed }}
+                                </span>
+                            </td>
+                            <td>
+                                <small>
+                                    {% if log.source_location %}
+                                        <i class="bi bi-geo-alt text-muted"></i> {{ log.source_location.name }}
+                                    {% endif %}
+                                    {% if log.destination_location %}
+                                        &rarr; <i class="bi bi-geo-alt text-primary"></i> {{ log.destination_location.name }}
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td><small class="text-muted">{{ log.created_at|date:"M d, Y H:i" }}</small></td>
+                            <td><small class="text-muted font-monospace">{{ log.reference_no|default:'-' }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>No inventory transactions performed by this user yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if user_obj != request.user %}
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteDetailUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-semibold text-danger">Delete User Account</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center pb-2">
+                <div style="width:48px;height:48px;background:#fce8e6;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                    <i class="bi bi-trash text-danger fs-5"></i>
+                </div>
+                <p class="mb-1 fw-medium">Permanently delete <strong>{{ user_obj.username }}</strong>?</p>
+                <p class="text-muted small">All account credentials will be removed. Historical inventory logs performed by this user will be preserved.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+                <button type="button" class="btn btn-light btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{% url 'auth:user-delete' user_obj.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm px-3">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

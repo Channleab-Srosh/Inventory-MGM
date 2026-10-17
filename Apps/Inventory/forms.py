@@ -1,4 +1,6 @@
+from decimal import Decimal
 from django import forms
+from django.core.exceptions import ValidationError
 from .models import Category, Supplier, Product, Location, InventoryLog
 
 
@@ -46,9 +48,8 @@ class ProductForm(forms.ModelForm):
 
     class Meta:
         model = Product
-        fields = ['sku', 'name', 'category', 'supplier', 'description', 'retail_price', 'cost_price', 'low_stock_alert', 'image', 'status']
+        fields = ['name', 'category', 'supplier', 'description', 'retail_price', 'cost_price', 'low_stock_alert', 'image', 'status']
         widgets = {
-            'sku': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. SKU-1001'}),
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Wireless Ergonomic Mouse'}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'supplier': forms.Select(attrs={'class': 'form-select'}),
@@ -59,6 +60,24 @@ class ProductForm(forms.ModelForm):
             'image': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
         }
+
+    def clean_retail_price(self):
+        price = self.cleaned_data.get('retail_price')
+        if price is not None and price < Decimal('0.00'):
+            raise forms.ValidationError("Retail price cannot be negative.")
+        return price
+
+    def clean_cost_price(self):
+        price = self.cleaned_data.get('cost_price')
+        if price is not None and price < Decimal('0.00'):
+            raise forms.ValidationError("Cost price cannot be negative.")
+        return price
+
+    def clean_low_stock_alert(self):
+        alert = self.cleaned_data.get('low_stock_alert')
+        if alert is not None and alert < 0:
+            raise forms.ValidationError("Low stock alert threshold cannot be negative.")
+        return alert
 
 
 class StockInForm(forms.Form):
@@ -74,17 +93,19 @@ class StockInForm(forms.Form):
     )
     quantity = forms.IntegerField(
         min_value=1,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Enter quantity', 'min': '1'})
-    )
-    reference_no = forms.CharField(
-        max_length=50,
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. PO-2024-001'})
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Enter quantity', 'min': '1'}),
+        error_messages={'min_value': 'Quantity must be at least 1 and cannot be negative or zero.'}
     )
     note = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Optional note about this stock-in'})
     )
+
+    def clean_quantity(self):
+        qty = self.cleaned_data.get('quantity')
+        if qty is not None and qty <= 0:
+            raise forms.ValidationError("Quantity must be greater than zero.")
+        return qty
 
 
 class StockOutForm(forms.Form):
@@ -100,14 +121,24 @@ class StockOutForm(forms.Form):
     )
     quantity = forms.IntegerField(
         min_value=1,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Enter quantity', 'min': '1'})
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Enter quantity', 'min': '1'}),
+        error_messages={'min_value': 'Quantity must be at least 1 and cannot be negative or zero.'}
     )
     reference_no = forms.CharField(
-        max_length=50,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. SO-2024-001'})
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter reference number (e.g. SO-20241013-B7C1) or leave blank to auto-generate'
+        }),
+        help_text="Optional custom reference number. Leave blank to auto-generate."
     )
     note = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Optional note about this stock-out'})
     )
+
+    def clean_quantity(self):
+        qty = self.cleaned_data.get('quantity')
+        if qty is not None and qty <= 0:
+            raise forms.ValidationError("Quantity must be greater than zero.")
+        return qty

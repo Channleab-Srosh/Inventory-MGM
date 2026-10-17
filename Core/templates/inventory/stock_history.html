@@ -22,17 +22,17 @@
 <!-- Filters -->
 <div class="card mb-3">
     <div class="card-body py-3">
-        <form method="GET" class="row g-2 align-items-end">
+        <form method="GET" class="row g-2 align-items-end" id="historyFilterForm">
             <div class="col-sm-3">
                 <label class="form-label mb-1">Search</label>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Product or reference...">
+                    <input type="text" name="q" id="historySearch" value="{{ query }}" class="form-control" placeholder="Product or reference..." autocomplete="off">
                 </div>
             </div>
-            <div class="col-sm-2">
+            <div class="col-sm-3">
                 <label class="form-label mb-1">Type</label>
-                <select name="type" class="form-select form-select-sm">
+                <select name="type" id="historyType" class="form-select form-select-sm">
                     <option value="">All Types</option>
                     {% for code, label in log_types %}
                     <option value="{{ code }}" {% if selected_type == code %}selected{% endif %}>{{ label }}</option>
@@ -41,15 +41,19 @@
             </div>
             <div class="col-sm-2">
                 <label class="form-label mb-1">Date From</label>
-                <input type="date" name="date_from" value="{{ date_from|default:current_date }}" class="form-control form-control-sm">
+                <input type="date" name="date_from" id="historyDateFrom" value="{{ date_from }}" class="form-control form-control-sm">
             </div>
             <div class="col-sm-2">
                 <label class="form-label mb-1">Date To</label>
-                <input type="date" name="date_to" value="{{ date_to|default:current_date }}" class="form-control form-control-sm">
+                <input type="date" name="date_to" id="historyDateTo" value="{{ date_to }}" class="form-control form-control-sm">
             </div>
-            <div class="col-sm-3 d-flex gap-1">
-                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Filter</button>
-                <a href="{% url 'inventory:stock-history' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+            <div class="col-sm-2 d-flex gap-1">
+                <a href="{% url 'inventory:stock-history' %}" class="btn btn-outline-secondary btn-sm flex-grow-1" title="Filter by today's date">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Today
+                </a>
+                <a href="{% url 'inventory:stock-history' %}?all=1" class="btn btn-outline-secondary btn-sm flex-grow-1" title="View all logs without date limit">
+                    <i class="bi bi-list-ul me-1"></i>All
+                </a>
             </div>
         </form>
     </div>
@@ -135,19 +139,61 @@
         <nav>
             <ul class="pagination pagination-sm mb-0">
                 {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}"><i class="bi bi-chevron-left"></i></a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}{% if show_all %}&all=1{% endif %}"><i class="bi bi-chevron-left"></i></a></li>
                 {% endif %}
                 {% for num in page_obj.paginator.page_range %}
                 <li class="page-item {% if num == page_obj.number %}active{% endif %}">
-                    <a class="page-link" href="?page={{ num }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ num }}</a>
+                    <a class="page-link" href="?page={{ num }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}{% if show_all %}&all=1{% endif %}">{{ num }}</a>
                 </li>
                 {% endfor %}
                 {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}"><i class="bi bi-chevron-right"></i></a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&type={{ selected_type }}&date_from={{ date_from }}&date_to={{ date_to }}{% if show_all %}&all=1{% endif %}"><i class="bi bi-chevron-right"></i></a></li>
                 {% endif %}
             </ul>
         </nav>
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const form     = document.getElementById('historyFilterForm');
+    const search   = document.getElementById('historySearch');
+    const type     = document.getElementById('historyType');
+    const dateFrom = document.getElementById('historyDateFrom');
+    const dateTo   = document.getElementById('historyDateTo');
+    const todayStr = '{{ current_date }}';
+    let debounceTimer;
+
+    {% if not show_all %}
+    if (dateFrom && !dateFrom.value) {
+        dateFrom.value = todayStr;
+    }
+    if (dateTo && !dateTo.value) {
+        dateTo.value = todayStr;
+    }
+    {% endif %}
+
+    if (search) {
+        search.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    }
+
+    if (type)     type.addEventListener('change',     function () { form.submit(); });
+    if (dateFrom) dateFrom.addEventListener('change', function () {
+        if (!dateFrom.value) dateFrom.value = todayStr;
+        form.submit();
+    });
+    if (dateTo)   dateTo.addEventListener('change',   function () {
+        if (!dateTo.value) dateTo.value = todayStr;
+        form.submit();
+    });
+})();
+</script>
 {% endblock %}

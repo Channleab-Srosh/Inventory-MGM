@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333333; }
+  .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e4e8; }
+  .header { background: #1a2332; padding: 28px 24px; text-align: center; }
+  .header h1 { color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; }
+  .header p { color: #8da4be; margin: 4px 0 0 0; font-size: 13px; }
+  .content { padding: 32px 28px; }
+  .content p { font-size: 15px; line-height: 1.6; color: #555555; margin: 0 0 16px 0; }
+  .credentials-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin: 20px 0; }
+  .credential-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid #edf2f7; }
+  .credential-row:last-child { border-bottom: none; }
+  .cred-label { color: #64748b; font-weight: 500; }
+  .cred-value { color: #0f172a; font-weight: 600; font-family: 'Courier New', Courier, monospace; }
+  .password-highlight { font-size: 16px; color: #0d6efd; background: #e0edff; padding: 2px 8px; border-radius: 4px; }
+  .btn-login { display: inline-block; background-color: #0d6efd; color: #ffffff !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 15px 0; }
+  .alert-box { background: #fff8e1; border-left: 4px solid #ffb300; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; font-size: 13px; color: #795548; line-height: 1.5; }
+  .footer { background: #fafbfc; border-top: 1px solid #e1e4e8; padding: 16px 24px; text-align: center; font-size: 12px; color: #8c959f; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>InvenStock</h1>
+      <p>Inventory Management System</p>
+    </div>
+    <div class="content">
+      <p>Hello <strong>{{ user.get_full_name|default:user.username }}</strong>,</p>
+      <p>An account has been created for you on <strong>InvenStock</strong> with the role of <strong>{{ user.get_role_display }}</strong>. Below are your account credentials:</p>
+      
+      <div class="credentials-card">
+        <div class="credential-row">
+          <span class="cred-label">Username:</span>
+          <span class="cred-value">{{ user.username }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="cred-label">Email:</span>
+          <span class="cred-value">{{ user.email }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="cred-label">Role:</span>
+          <span class="cred-value">{{ user.get_role_display }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="cred-label">Temporary Password:</span>
+          <span class="cred-value password-highlight">{{ temp_password }}</span>
+        </div>
+      </div>
+
+      <div class="alert-box">
+        <strong>Security Notice:</strong> This is a temporary password. When you log in for the first time, you will be required to set your own secure permanent password.
+      </div>
+
+      <div style="text-align: center;">
+        <a href="{{ login_url }}" class="btn-login">Sign In to InvenStock</a>
+      </div>
+
+      <p style="font-size: 13px; color: #6c757d; margin-top: 20px;">
+        If you have trouble clicking the button, copy and paste this link into your browser:<br>
+        <span style="color: #0d6efd; word-break: break-all;">{{ login_url }}</span>
+      </p>
+    </div>
+    <div class="footer">
+      &copy; InvenStock Inventory Management System &bull; Confidential
+    </div>
+  </div>
+</body>
+</html>

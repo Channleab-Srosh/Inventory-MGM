@@ -18,12 +18,12 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                 <li>
-                    <a class="dropdown-item" href="{% url 'inventory:products-export-excel' %}?q={{ query }}&category={{ category_filter }}&status={{ status_filter }}">
+                    <a class="dropdown-item" href="{% url 'inventory:products-export-excel' %}?q={{ query }}&amp;category={{ category_filter }}&amp;status={{ status_filter }}">
                         <i class="bi bi-file-earmark-excel text-success me-2"></i>Export to Excel (.xlsx)
                     </a>
                 </li>
                 <li>
-                    <a class="dropdown-item" href="{% url 'inventory:products-export-csv' %}?q={{ query }}&category={{ category_filter }}&status={{ status_filter }}">
+                    <a class="dropdown-item" href="{% url 'inventory:products-export-csv' %}?q={{ query }}&amp;category={{ category_filter }}&amp;status={{ status_filter }}">
                         <i class="bi bi-file-earmark-text text-primary me-2"></i>Export to CSV (.csv)
                     </a>
                 </li>
@@ -40,35 +40,36 @@
 <!-- Filters -->
 <div class="card mb-3">
     <div class="card-body py-3">
-        <form method="GET" class="row g-2 align-items-end">
+        <form method="GET" class="row g-2 align-items-end" id="filterForm">
             <div class="col-sm-4">
                 <label class="form-label mb-1">Search</label>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Product name or SKU...">
+                    <input type="text" name="q" id="searchInput" value="{{ query }}" class="form-control" placeholder="Product name or SKU..." autocomplete="off">
                 </div>
             </div>
             <div class="col-sm-3">
                 <label class="form-label mb-1">Category</label>
-                <select name="category" class="form-select form-select-sm">
+                <select name="category" id="categorySelect" class="form-select form-select-sm">
                     <option value="">All Categories</option>
                     {% for cat in categories %}
-                    <option value="{{ cat.id }}" {% if category_filter == cat.id|stringformat:'s' %}selected{% endif %}>{{ cat.name }}</option>
+                    <option value="{{ cat.id }}" {% if category_filter_id == cat.id %}selected="selected"{% endif %}>{{ cat.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-sm-3">
                 <label class="form-label mb-1">Status</label>
-                <select name="status" class="form-select form-select-sm">
+                <select name="status" id="statusSelect" class="form-select form-select-sm">
                     <option value="">All Status</option>
                     {% for val, label in status_choices %}
-                    <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ val }}" {% if status_filter == val %}selected="selected"{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-sm-2 d-flex gap-1">
-                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Filter</button>
-                <a href="{% url 'inventory:product-list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+                <a href="{% url 'inventory:product-list' %}" class="btn btn-outline-secondary btn-sm flex-grow-1">
+                    <i class="bi bi-x-lg me-1"></i>Clear
+                </a>
             </div>
         </form>
     </div>
@@ -149,10 +150,8 @@
                     <td>
                         {% if product.status == 'ACTIVE' %}
                             <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
-                        {% elif product.status == 'INACTIVE' %}
-                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inactive</span>
                         {% else %}
-                            <span class="badge bg-dark-subtle text-dark border">Discontinued</span>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inactive</span>
                         {% endif %}
                     </td>
                     <td>
@@ -256,5 +255,26 @@ function confirmDelete(pk, name) {
     document.getElementById('deleteForm').action = '/products/' + pk + '/delete/';
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
+
+// ── Auto-filter ──────────────────────────────────────────────────────────────
+(function () {
+    const form     = document.getElementById('filterForm');
+    const search   = document.getElementById('searchInput');
+    const category = document.getElementById('categorySelect');
+    const status   = document.getElementById('statusSelect');
+    let debounceTimer;
+
+    // Debounce search: wait 400 ms after user stops typing
+    search.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+            form.submit();
+        }, 400);
+    });
+
+    // Instant submit on dropdown change
+    category.addEventListener('change', function () { form.submit(); });
+    status.addEventListener('change',   function () { form.submit(); });
+})();
 </script>
 {% endblock %}

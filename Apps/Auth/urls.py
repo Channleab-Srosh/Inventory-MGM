@@ -17,6 +17,9 @@ urlpatterns = [
     path('settings/', views.settings_view, name='settings'),
     path('users/', views.user_list_view, name='user-list'),
     path('users/create/', views.user_create_view, name='user-create'),
+    path('users/<int:pk>/', views.user_detail_view, name='user-detail'),
     path('users/<int:pk>/edit/', views.user_edit_view, name='user-edit'),
+    path('users/<int:pk>/delete/', views.user_delete_view, name='user-delete'),
     path('users/<int:pk>/toggle-status/', views.user_toggle_status_view, name='user-toggle-status'),
+    path('session-keep-alive/', views.session_keep_alive_view, name='session-keep-alive'),
 ]

@@ -174,3 +174,147 @@ class InventoryViewsAndExportsTests(TestCase):
         # Staff cannot access product-add
         res = client.get(reverse('inventory:product-add'))
         self.assertEqual(res.status_code, 403)
+
+    def test_staff_does_not_see_empty_actions_column_in_categories_and_locations(self):
+        client = Client()
+        client.force_login(self.staff)
+
+        # In categories, staff should NOT see Actions table header
+        cat_res = client.get(reverse('inventory:category-list'))
+        self.assertEqual(cat_res.status_code, 200)
+        self.assertNotContains(cat_res, '<th>Actions</th>')
+
+        # In locations, staff should NOT see Actions table header
+        loc_res = client.get(reverse('inventory:location-list'))
+        self.assertEqual(loc_res.status_code, 200)
+        self.assertNotContains(loc_res, '<th>Actions</th>')
+
+        # Admin DOES see Actions table header
+        client.force_login(self.admin)
+        cat_admin = client.get(reverse('inventory:category-list'))
+        self.assertContains(cat_admin, '<th>Actions</th>')
+        loc_admin = client.get(reverse('inventory:location-list'))
+        self.assertContains(loc_admin, '<th>Actions</th>')
+
+
+from decimal import Decimal
+from Apps.Inventory.forms import ProductForm, StockInForm, StockOutForm
+
+
+class NegativeValidationTests(TestCase):
+    def setUp(self):
+        self.category = Category.objects.create(name='Test Category')
+        self.loc = Location.objects.create(name='Test Loc', location_type='WAREHOUSE')
+        self.product = Product.objects.create(
+            name='Test Valid Product',
+            retail_price=Decimal('10.00'),
+            cost_price=Decimal('5.00'),
+            low_stock_alert=5
+        )
+
+    def test_product_negative_retail_price_model(self):
+        prod = Product(name='Bad Retail', retail_price=Decimal('-1.00'), cost_price=Decimal('5.00'))
+        with self.assertRaises(ValidationError):
+            prod.full_clean()
+
+    def test_product_negative_cost_price_model(self):
+        prod = Product(name='Bad Cost', retail_price=Decimal('10.00'), cost_price=Decimal('-0.50'))
+        with self.assertRaises(ValidationError):
+            prod.full_clean()
+
+    def test_product_negative_low_stock_alert_model(self):
+        prod = Product(name='Bad Alert', low_stock_alert=-5)
+        with self.assertRaises(ValidationError):
+            prod.full_clean()
+
+    def test_product_form_rejects_negative_prices(self):
+        form = ProductForm(data={
+            'name': 'Negative Form Test',
+            'retail_price': '-15.00',
+            'cost_price': '-5.00',
+            'low_stock_alert': '-2',
+            'status': 'ACTIVE',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('retail_price', form.errors)
+        self.assertIn('cost_price', form.errors)
+        self.assertIn('low_stock_alert', form.errors)
+
+    def test_stock_in_form_rejects_negative_or_zero_quantity(self):
+        form_zero = StockInForm(data={'product': self.product.id, 'location': self.loc.id, 'quantity': 0})
+        self.assertFalse(form_zero.is_valid())
+        self.assertIn('quantity', form_zero.errors)
+
+        form_neg = StockInForm(data={'product': self.product.id, 'location': self.loc.id, 'quantity': -10})
+        self.assertFalse(form_neg.is_valid())
+        self.assertIn('quantity', form_neg.errors)
+
+    def test_stock_out_form_rejects_negative_or_zero_quantity(self):
+        form_zero = StockOutForm(data={'product': self.product.id, 'location': self.loc.id, 'quantity': 0})
+        self.assertFalse(form_zero.is_valid())
+        self.assertIn('quantity', form_zero.errors)
+
+        form_neg = StockOutForm(data={'product': self.product.id, 'location': self.loc.id, 'quantity': -5})
+        self.assertFalse(form_neg.is_valid())
+        self.assertIn('quantity', form_neg.errors)
+
+    def test_transfer_stock_rejects_negative_quantity(self):
+        loc2 = Location.objects.create(name='Dest Loc', location_type='STORE')
+        with self.assertRaises(ValidationError):
+            InventoryService.transfer_stock(
+                product_id=self.product.id,
+                source_location_id=self.loc.id,
+                destination_location_id=loc2.id,
+                quantity=-5
+            )
+
+
+class StockOutCustomReferenceNumberTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username='stock_boss',
+            email='stock_boss@example.com',
+            password='AdminPassword123!',
+            role='ADMIN'
+        )
+        self.loc = Location.objects.create(name='Warehouse Alpha', location_type='WAREHOUSE')
+        self.product = Product.objects.create(name='Widget Alpha', status='ACTIVE')
+        ProductLocation.objects.create(product=self.product, location=self.loc, quantity=100)
+
+    def test_stock_out_with_custom_reference_number(self):
+        client = Client()
+        client.force_login(self.user)
+
+        custom_ref = 'CUSTOM-SO-99988'
+        response = client.post(reverse('inventory:stock-out'), {
+            'product': self.product.id,
+            'location': self.loc.id,
+            'quantity': 10,
+            'reference_no': custom_ref,
+            'note': 'Sold to VIP customer'
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        log = InventoryLog.objects.filter(reference_no=custom_ref).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.product, self.product)
+        self.assertEqual(log.quantity_changed, -10)
+
+    def test_stock_out_auto_generates_reference_when_blank(self):
+        client = Client()
+        client.force_login(self.user)
+
+        response = client.post(reverse('inventory:stock-out'), {
+            'product': self.product.id,
+            'location': self.loc.id,
+            'quantity': 5,
+            'reference_no': '',
+            'note': 'Blank reference test'
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        # Should have auto-generated reference with prefix SO-
+        log = InventoryLog.objects.filter(product=self.product, quantity_changed=-5).first()
+        self.assertIsNotNone(log)
+        self.assertTrue(log.reference_no.startswith('SO-'))
+

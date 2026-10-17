@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordChangeForm
+from .validators import validate_strong_password, generate_strong_temporary_password
 
 User = get_user_model()
 
@@ -24,23 +25,26 @@ class CustomPasswordChangeForm(PasswordChangeForm):
         label='Current Password'
     )
     new_password1 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'New password'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'New password', 'id': 'new_password1'}),
         label='New Password'
     )
     new_password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm new password'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm new password', 'id': 'new_password2'}),
         label='Confirm New Password'
     )
 
+    def clean_new_password1(self):
+        p1 = self.cleaned_data.get('new_password1')
+        validate_strong_password(p1)
+        return p1
+
 
 class UserCreateForm(forms.ModelForm):
-    password1 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'}),
-        label='Password'
-    )
-    password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm password'}),
-        label='Confirm Password'
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'staff@example.com'}),
+        label='Email Address',
+        help_text='A secure temporary password will be automatically generated and sent to this email address.'
     )
 
     class Meta:
@@ -50,21 +54,32 @@ class UserCreateForm(forms.ModelForm):
             'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Username'}),
             'first_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'First name'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Last name'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'email@example.com'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
         }
 
-    def clean_password2(self):
-        p1 = self.cleaned_data.get('password1')
-        p2 = self.cleaned_data.get('password2')
-        if p1 and p2 and p1 != p2:
-            raise forms.ValidationError("Passwords do not match.")
-        return p2
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError("Email address is required so account credentials can be sent.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("This email address is already in use by another account.")
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if not username:
+            raise forms.ValidationError("Username is required.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+        return username
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.set_password(self.cleaned_data['password1'])
+        temp_pass = generate_strong_temporary_password(12)
+        user.set_password(temp_pass)
+        user.must_change_password = True
+        self.temp_password = temp_pass
         if commit:
             user.save()
         return user
@@ -119,6 +134,11 @@ class RegisterForm(forms.ModelForm):
         if User.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError("This username is already taken.")
         return username
+
+    def clean_password1(self):
+        p1 = self.cleaned_data.get('password1')
+        validate_strong_password(p1)
+        return p1
 
     def clean_password2(self):
         p1 = self.cleaned_data.get('password1')
@@ -242,13 +262,16 @@ class ForgotPasswordSetPasswordForm(forms.Form):
         })
     )
 
+    def clean_new_password1(self):
+        p1 = self.cleaned_data.get('new_password1')
+        validate_strong_password(p1)
+        return p1
+
     def clean_new_password2(self):
         p1 = self.cleaned_data.get('new_password1')
         p2 = self.cleaned_data.get('new_password2')
         if p1 and p2 and p1 != p2:
             raise forms.ValidationError("Passwords do not match.")
-        if p1 and len(p1) < 6:
-            raise forms.ValidationError("Password must be at least 6 characters.")
         return p2
 
 

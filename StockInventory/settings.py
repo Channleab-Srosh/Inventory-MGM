@@ -42,6 +42,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'Apps.Auth.middleware.SessionIdleTimeoutMiddleware',
+    'Apps.Auth.middleware.LoginRequiredMiddleware',
 ]
 
 ROOT_URLCONF = 'StockInventory.urls'
@@ -56,6 +58,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'Apps.Auth.context_processors.session_settings',
             ],
         },
     },
@@ -92,6 +95,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'Apps.Auth.validators.StrongPasswordValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
+    },
 ]
 
 
@@ -117,6 +126,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Login redirect
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
+
+# Session Inactivity & Security Settings
+# Inactivity timeout in seconds (default: 1800s = 30 minutes)
+SESSION_IDLE_TIMEOUT = config('SESSION_IDLE_TIMEOUT', default=300, cast=int)
+SESSION_COOKIE_AGE = SESSION_IDLE_TIMEOUT
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Django messages tags
 from django.contrib.messages import constants as messages_constants

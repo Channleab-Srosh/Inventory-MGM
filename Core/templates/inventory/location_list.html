@@ -21,14 +21,16 @@
 <!-- Search bar -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="d-flex gap-2">
-            <input type="text" name="q" value="{{ query }}" placeholder="Search locations…"
-                   class="form-control form-control-sm" style="max-width:280px;">
-            <button type="submit" class="btn btn-primary btn-sm">
-                <i class="bi bi-search me-1"></i> Search
-            </button>
+        <form method="GET" class="d-flex gap-2 align-items-center" id="locationFilterForm">
+            <div class="input-group input-group-sm" style="max-width:320px;">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" name="q" id="locationSearchInput" value="{{ query }}" placeholder="Search locations…"
+                       class="form-control" autocomplete="off">
+            </div>
             {% if query %}
-            <a href="{% url 'inventory:location-list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+            <a href="{% url 'inventory:location-list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-x-lg me-1"></i>Clear
+            </a>
             {% endif %}
         </form>
     </div>
@@ -43,7 +45,9 @@
                     <th>Location Name</th>
                     <th>Type</th>
                     <th>Active Stock Lines</th>
+                    {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
                     <th>Actions</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -71,16 +75,15 @@
                             {{ location.stock_count }} product{% if location.stock_count != 1 %}s{% endif %}
                         </span>
                     </td>
+                    {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
                     <td>
                         <div class="d-flex gap-1">
-                            {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
                             <button class="btn btn-sm btn-outline-secondary"
                                     data-bs-toggle="modal"
                                     data-bs-target="#editLocationModal{{ location.pk }}"
                                     title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            {% endif %}
                             {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
                             <form method="POST" action="{% url 'inventory:location-delete' location.pk %}"
                                   onsubmit="return confirm('Delete location \'{{ location.name }}\'? This cannot be undone.');">
@@ -92,6 +95,7 @@
                             {% endif %}
                         </div>
                     </td>
+                    {% endif %}
                 </tr>
 
                 <!-- Edit Modal for each location -->
@@ -133,7 +137,7 @@
 
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center py-5 text-muted">
+                    <td colspan="{% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}5{% else %}4{% endif %}" class="text-center py-5 text-muted">
                         <i class="bi bi-building fs-1 d-block mb-2"></i>
                         <p class="mb-1">No locations found.</p>
                         {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
@@ -188,4 +192,24 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Auto-filter ──────────────────────────────────────────────────────────────
+(function () {
+    const form   = document.getElementById('locationFilterForm');
+    const search = document.getElementById('locationSearchInput');
+    let debounceTimer;
+
+    if (search) {
+        search.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    }
+})();
+</script>
 {% endblock %}

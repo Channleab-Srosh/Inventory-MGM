@@ -400,7 +400,7 @@
             <i class="bi bi-person-circle"></i> Profile
         </a>
 
-        {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+        {% if request.user.role == 'ADMIN' or request.user.role == 'MANAGER' or request.user.is_superuser %}
         <a href="{% url 'auth:user-list' %}" class="nav-link {% if 'user' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-people"></i> User Management
         </a>
@@ -540,6 +540,120 @@
         });
     });
 </script>
+<!-- Session Inactivity Warning Modal -->
+{% if request.user.is_authenticated %}
+<div class="modal fade" id="sessionTimeoutModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="sessionTimeoutModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-semibold text-warning" id="sessionTimeoutModalLabel">
+                    <i class="bi bi-hourglass-split me-1"></i>Session Expiring Soon
+                </h6>
+            </div>
+            <div class="modal-body text-center py-3">
+                <div style="width:52px;height:52px;background:#fff3cd;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                    <i class="bi bi-clock-history text-warning fs-4"></i>
+                </div>
+                <p class="mb-1 fw-medium">You have been inactive</p>
+                <p class="text-muted small mb-2">For your security, your session will automatically expire in:</p>
+                <div class="badge bg-warning-subtle text-warning-emphasis fs-6 px-3 py-2 fw-bold" id="sessionCountdownBadge">
+                    <span id="sessionCountdownSeconds">60</span>s
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+                <a href="{% url 'auth:logout' %}" class="btn btn-outline-secondary btn-sm px-3">
+                    Sign Out
+                </a>
+                <button type="button" class="btn btn-primary btn-sm px-3" id="staySignedInBtn" onclick="extendSession()">
+                    <i class="bi bi-shield-check me-1"></i>Stay Signed In
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const timeoutSeconds = {{ SESSION_IDLE_TIMEOUT|default:1800 }};
+        const warningSeconds = timeoutSeconds > 90 ? 60 : Math.max(10, Math.floor(timeoutSeconds / 3));
+        const idleThreshold = (timeoutSeconds - warningSeconds) * 1000;
+
+        let idleTimer = null;
+        let countdownTimer = null;
+        let secondsLeft = warningSeconds;
+        let modalInstance = null;
+        const modalEl = document.getElementById('sessionTimeoutModal');
+        const countdownEl = document.getElementById('sessionCountdownSeconds');
+
+        function getModal() {
+            if (!modalInstance && modalEl) {
+                modalInstance = new bootstrap.Modal(modalEl);
+            }
+            return modalInstance;
+        }
+
+        function showWarningModal() {
+            secondsLeft = warningSeconds;
+            if (countdownEl) countdownEl.textContent = secondsLeft;
+            const modal = getModal();
+            if (modal) modal.show();
+
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(function() {
+                secondsLeft--;
+                if (countdownEl) countdownEl.textContent = secondsLeft;
+                if (secondsLeft <= 0) {
+                    clearInterval(countdownTimer);
+                    window.location.href = "{% url 'auth:login' %}?session_expired=1";
+                }
+            }, 1000);
+        }
+
+        function resetIdleTimer() {
+            if (secondsLeft < warningSeconds) return;
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(showWarningModal, idleThreshold);
+        }
+
+        window.extendSession = function() {
+            fetch("{% url 'auth:session-keep-alive' %}", {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function(res) {
+                if (res.ok) {
+                    clearInterval(countdownTimer);
+                    secondsLeft = warningSeconds;
+                    const modal = getModal();
+                    if (modal) modal.hide();
+                    resetIdleTimer();
+                } else {
+                    window.location.href = "{% url 'auth:login' %}?session_expired=1";
+                }
+            }).catch(function() {
+                window.location.href = "{% url 'auth:login' %}?session_expired=1";
+            });
+        };
+
+        const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+        let throttleTimer = null;
+        activityEvents.forEach(function(evt) {
+            document.addEventListener(evt, function() {
+                if (!throttleTimer) {
+                    throttleTimer = setTimeout(function() {
+                        resetIdleTimer();
+                        throttleTimer = null;
+                    }, 1000);
+                }
+            }, { passive: true });
+        });
+
+        resetIdleTimer();
+    })();
+</script>
+{% endif %}
+
 {% block extra_js %}{% endblock %}
 </body>
 </html>

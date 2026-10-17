@@ -52,10 +52,8 @@
                 <div class="mt-2">
                     {% if product.status == 'ACTIVE' %}
                         <span class="badge bg-success">Active</span>
-                    {% elif product.status == 'INACTIVE' %}
-                        <span class="badge bg-secondary">Inactive</span>
                     {% else %}
-                        <span class="badge bg-dark">Discontinued</span>
+                        <span class="badge bg-secondary">Inactive</span>
                     {% endif %}
                 </div>
             </div>

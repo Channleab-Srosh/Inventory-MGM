@@ -39,8 +39,9 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
+                        <label class="form-label">Email Address <span class="text-danger">*</span></label>
                         {{ form.email }}
+                        {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
@@ -53,16 +54,11 @@
                         </div>
                     </div>
                     {% if form_action == 'Create' %}
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Password <span class="text-danger">*</span></label>
-                            {{ form.password1 }}
-                            {% if form.password1.errors %}<div class="text-danger small mt-1">{{ form.password1.errors.0 }}</div>{% endif %}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
-                            {{ form.password2 }}
-                            {% if form.password2.errors %}<div class="text-danger small mt-1">{{ form.password2.errors.0 }}</div>{% endif %}
+                    <div class="alert alert-info d-flex align-items-start gap-2 mb-3 py-2 px-3" style="font-size:0.875rem;">
+                        <i class="bi bi-shield-lock-fill text-primary fs-5 mt-1"></i>
+                        <div>
+                            <strong>Automatic Password Generation & Delivery:</strong>
+                            <p class="mb-0 text-muted">A secure temporary password will be automatically generated and sent to the staff member's email address. On their first login, they will be prompted to set their permanent password.</p>
                         </div>
                     </div>
                     {% endif %}

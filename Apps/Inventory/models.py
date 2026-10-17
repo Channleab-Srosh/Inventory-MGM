@@ -1,5 +1,8 @@
+from decimal import Decimal
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 
 
 class Category(models.Model):
@@ -79,9 +82,8 @@ class Product(models.Model):
     STATUS_CHOICES = (
         ('ACTIVE', 'Active'),
         ('INACTIVE', 'Inactive'),
-        ('DISCONTINUED', 'Discontinued'),
     )
-    sku = models.CharField(max_length=50, unique=True)
+    sku = models.CharField(max_length=50, unique=True, blank=True)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     category = models.ForeignKey(
@@ -90,9 +92,18 @@ class Product(models.Model):
     supplier = models.ForeignKey(
         Supplier, on_delete=models.SET_NULL, null=True, blank=True, related_name='products'
     )
-    retail_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    low_stock_alert = models.IntegerField(default=5)
+    retail_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    cost_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    low_stock_alert = models.PositiveIntegerField(
+        default=5,
+        validators=[MinValueValidator(0)]
+    )
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='ACTIVE')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -100,6 +111,31 @@ class Product(models.Model):
 
     class Meta:
         ordering = ['name']
+
+    def clean(self):
+        super().clean()
+        if self.retail_price is not None and self.retail_price < Decimal('0.00'):
+            raise ValidationError({'retail_price': 'Retail price cannot be negative.'})
+        if self.cost_price is not None and self.cost_price < Decimal('0.00'):
+            raise ValidationError({'cost_price': 'Cost price cannot be negative.'})
+        if self.low_stock_alert is not None and self.low_stock_alert < 0:
+            raise ValidationError({'low_stock_alert': 'Low stock alert threshold cannot be negative.'})
+
+    def _generate_sku(self):
+        """Auto-generate a unique sequential SKU like SKU-0001."""
+        last = Product.objects.order_by('-id').first()
+        next_id = (last.id + 1) if last else 1
+        candidate = f"SKU-{next_id:04d}"
+        # Ensure uniqueness in case of gaps/collisions
+        while Product.objects.filter(sku=candidate).exists():
+            next_id += 1
+            candidate = f"SKU-{next_id:04d}"
+        return candidate
+
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            self.sku = self._generate_sku()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.sku} - {self.name}"

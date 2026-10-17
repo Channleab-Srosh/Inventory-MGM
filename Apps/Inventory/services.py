@@ -1,6 +1,15 @@
+import uuid
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from .models import Product, Location, ProductLocation, InventoryLog
+
+
+def _generate_reference_no(prefix: str) -> str:
+    """Auto-generate a unique reference number like PO-20241013-A3F2."""
+    date_str = timezone.now().strftime('%Y%m%d')
+    suffix = uuid.uuid4().hex[:4].upper()
+    return f"{prefix}-{date_str}-{suffix}"
 
 
 class InventoryService:
@@ -17,6 +26,9 @@ class InventoryService:
 
         if str(source_location_id) == str(destination_location_id):
             raise ValidationError("Source and destination locations cannot be identical.")
+
+        if not reference_no:
+            reference_no = _generate_reference_no('TRF')
 
         product = Product.objects.get(pk=product_id)
         source_loc = Location.objects.get(pk=source_location_id)
@@ -72,6 +84,9 @@ class InventoryService:
         if quantity <= 0:
             raise ValidationError("Checkout quantity must be greater than zero.")
 
+        if not reference_no:
+            reference_no = _generate_reference_no('SO')
+
         product = Product.objects.get(pk=product_id)
         location = Location.objects.get(pk=location_id)
 
@@ -116,6 +131,9 @@ class InventoryService:
         if quantity <= 0:
             raise ValidationError("Intake quantity must be greater than zero.")
 
+        if not reference_no:
+            reference_no = _generate_reference_no('PO')
+
         product = Product.objects.get(pk=product_id)
         location = Location.objects.get(pk=location_id)
 
@@ -152,6 +170,8 @@ class InventoryService:
         if new_quantity < 0:
             raise ValidationError("Stock quantity cannot be negative.")
 
+        reference_no = _generate_reference_no('ADJ')
+
         product = Product.objects.get(pk=product_id)
         location = Location.objects.get(pk=location_id)
 
@@ -174,6 +194,7 @@ class InventoryService:
             source_location=location,
             destination_location=None,
             reason=audit_reason,
+            reference_no=reference_no,
             performed_by=user if user and user.is_authenticated else None
         )
 
