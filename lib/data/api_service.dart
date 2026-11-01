@@ -48,9 +48,50 @@ class ApiService {
   static const Duration uploadTimeout = Duration(seconds: 60);
 
   /// Server origin without the API prefix, e.g. http://192.168.0.242:8080
+  /// Cleans and sanitizes a URL string by trimming whitespace, stripping non-printable
+  /// ASCII/control characters (e.g. \x16/SYN, newlines), invisible unicode characters,
+  /// and fixing stray percent-encoded control codes before hostnames.
+  static String sanitizeUrl(String? raw) {
+    if (raw == null) return '';
+    var clean = raw
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F\u200B-\u200D\uFEFF]'), '')
+        .trim();
+    // Strip stray percent-encoded control codes accidentally prepended to host
+    clean = clean.replaceAll(RegExp(r'(https?://)%[0-9a-fA-F]{2}'), r'$1');
+    return clean;
+  }
+
+  /// Checks if a string can be safely parsed as a valid HTTP or HTTPS URI
+  static bool isValidBaseUrl(String? url) {
+    if (url == null) return false;
+    final clean = sanitizeUrl(url);
+    if (clean.isEmpty) return false;
+    try {
+      final uri = Uri.parse(clean);
+      return (uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.host.isNotEmpty &&
+          !uri.host.contains('%');
+    } catch (_) {
+      return false;
+    }
+  }
+
   String get serverOrigin {
-    final u = Uri.parse(_baseUrl);
-    return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}';
+    try {
+      final clean = sanitizeUrl(_baseUrl);
+      final u = Uri.parse(clean);
+      return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}';
+  
+    } catch (_) {
+      try {
+        final u = Uri.parse(AppConstants.defaultBaseUrl);
+        return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}';
+    
+      } catch (_) {
+        return 'http://172.20.10.10:8080';
+      }
+    }
+
   }
 
   /// Turns whatever the backend stored in `imageUrl` into a URL this device can load.
@@ -940,7 +981,7 @@ class ApiService {
     }
     final type = await _detectImageType(file);
     if (type == null) {
-      throw ApiException('Unsupported image type. Allowed: JPEG, PNG, GIF, WEBP',
+      throw ApiException('Unsupported image type. Allowed: JPEG, PNG, GIF, WEBP, JFIF',
           statusCode: 400);
     }
     final (mime, ext) = type;
@@ -1162,6 +1203,7 @@ class ApiService {
   /// Update user: PUT /users/{id}
   Future<Map<String, dynamic>> updateUser(
     dynamic id, {
+    String? username,
     required String email,
     String? password,
     required String fullName,
@@ -1169,6 +1211,7 @@ class ApiService {
     required String role,
   }) async {
     final data = await put('/users/$id', body: {
+      if (username != null && username.isNotEmpty) 'username': username,
       'email': email,
       if (password != null && password.isNotEmpty) 'password': password,
       'fullName': fullName,

@@ -510,6 +510,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       final data = await _api.updateUser(
         updated.id,
+        username: updated.username,
         email: updated.email,
         password: password,
         fullName: updated.name,
