@@ -18,6 +18,116 @@ class ProductDetailScreen extends StatelessWidget {
   final String productId;
   const ProductDetailScreen({super.key, required this.productId});
 
+  Future<void> _handleDeleteProduct(BuildContext context, Product product) async {
+    final prodProv = context.read<ProductProvider>();
+
+    if (product.quantity > 0) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Product Has Stock'),
+          content: Text(
+            'Product "${product.name}" currently has ${product.quantity} ${product.unit} in stock.\n\n'
+            'To maintain inventory integrity, products with stock cannot be deleted. Would you like to deactivate this product instead?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.pause_circle_outline, size: 18),
+              label: const Text('Deactivate Instead'),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+              onPressed: () => Navigator.pop(ctx, 'deactivate'),
+            ),
+          ],
+        ),
+      );
+
+      if (action == 'deactivate' && context.mounted) {
+        final ok = await prodProv.toggleProductStatus(product.id);
+        if (context.mounted && ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('"${product.name}" has been deactivated.'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Delete Product',
+      message: 'Are you sure you want to delete "${product.name}" (${product.sku})? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmColor: AppColors.danger,
+    );
+
+    if (confirmed && context.mounted) {
+      final ok = await prodProv.deleteProduct(product.id);
+      if (context.mounted) {
+        if (ok) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('"${product.name}" deleted successfully'),
+              backgroundColor: AppColors.inStock,
+            ),
+          );
+        } else {
+          final errorMsg = prodProv.error ?? 'Failed to delete product';
+          final isLinked = errorMsg.toLowerCase().contains('transaction') ||
+              errorMsg.toLowerCase().contains('associated') ||
+              errorMsg.toLowerCase().contains('history');
+
+          if (isLinked) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Cannot Delete Product'),
+                content: Text(
+                  'Product "${product.name}" has recorded stock transactions in history.\n\n'
+                  'To protect historical audit trails, you can deactivate it instead so it no longer appears for new stock operations.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.pause_circle_outline, size: 18),
+                    label: const Text('Deactivate Instead'),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await prodProv.toggleProductStatus(product.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('"${product.name}" has been deactivated.'),
+                            backgroundColor: AppColors.warning,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errorMsg), backgroundColor: AppColors.danger),
+            );
+          }
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final products = context.watch<ProductProvider>();
@@ -114,7 +224,7 @@ class ProductDetailScreen extends StatelessWidget {
                       },
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 6),
                       child: IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 20),
                         style: IconButton.styleFrom(
@@ -125,6 +235,19 @@ class ProductDetailScreen extends StatelessWidget {
                         ),
                         onPressed: () =>
                             context.push('/products/edit/$productId'),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.danger),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          shape: const CircleBorder(),
+                          fixedSize: const Size(40, 40),
+                        ),
+                        tooltip: 'Delete Product',
+                        onPressed: () => _handleDeleteProduct(context, product),
                       ),
                     ),
                   ],

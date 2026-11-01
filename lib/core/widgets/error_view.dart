@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// Reusable error UI with a retry button.
 /// [onRetry] is a callback (a function passed in) so this widget

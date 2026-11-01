@@ -125,14 +125,30 @@ class _ProductsScreenState extends State<ProductsScreen> {
               padding: EdgeInsets.fromLTRB(hPad, 14, hPad, 0),
               child: Row(
                 children: [
-                  const Text(
-                    'Inventory',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                      color: AppColors.text,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Inventory',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        filtered.length == products.allProducts.length
+                            ? '${products.allProducts.length} Products'
+                            : '${filtered.length} of ${products.allProducts.length} Products',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   if (canManageProducts)

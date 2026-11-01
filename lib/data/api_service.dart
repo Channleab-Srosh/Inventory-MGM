@@ -939,6 +939,17 @@ class ApiService {
     await delete('/products/$id');
   }
 
+  /// Get all units of measure from backend: GET /products/units
+  Future<List<String>> getUnitsOfMeasure() async {
+    try {
+      final data = await get('/products/units');
+      if (data is List) {
+        return data.map((e) => e.toString().toLowerCase()).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// Bulk delete products: DELETE /products/1,2,3
   Future<void> deleteProducts(List<int> ids) async {
     if (ids.isEmpty) return;
@@ -1018,6 +1029,7 @@ class ApiService {
     required dynamic productId,
     required int quantity,
     String? note,
+    DateTime? transactionDate,
   }) async {
     final pId = _parseNumericId(productId);
     final cleanNote = note != null && note.isNotEmpty
@@ -1028,6 +1040,8 @@ class ApiService {
       'productId': pId,
       'quantity': quantity,
       if (cleanNote != null) 'note': cleanNote,
+      if (transactionDate != null)
+        'transactionDate': transactionDate.toUtc().toIso8601String(),
     });
     return data as Map<String, dynamic>;
   }
@@ -1037,6 +1051,7 @@ class ApiService {
     required dynamic productId,
     required int quantity,
     String? note,
+    DateTime? transactionDate,
   }) async {
     final pId = _parseNumericId(productId);
     final cleanNote = note != null && note.isNotEmpty
@@ -1047,6 +1062,8 @@ class ApiService {
       'productId': pId,
       'quantity': quantity,
       if (cleanNote != null) 'note': cleanNote,
+      if (transactionDate != null)
+        'transactionDate': transactionDate.toUtc().toIso8601String(),
     });
     return data as Map<String, dynamic>;
   }
@@ -1096,12 +1113,19 @@ class ApiService {
     final parsedUserId = _parseNumericId(userId);
     final normType = _normalizeTransactionType(type);
 
+    final normalizedFrom = fromDate != null
+        ? DateTime(fromDate.year, fromDate.month, fromDate.day, 0, 0, 0, 0).toUtc().toIso8601String()
+        : null;
+    final normalizedTo = toDate != null
+        ? DateTime(toDate.year, toDate.month, toDate.day, 23, 59, 59, 999).toUtc().toIso8601String()
+        : null;
+
     final data = await get('/stock/history', queryParams: {
       if (parsedProdId != null) 'productId': parsedProdId,
       if (normType != null && normType.isNotEmpty) 'type': normType,
       if (parsedUserId != null) 'userId': parsedUserId,
-      if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
-      if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
+      if (normalizedFrom != null) 'fromDate': normalizedFrom,
+      if (normalizedTo != null) 'toDate': normalizedTo,
       'page': page,
       'size': size,
       'sort': sort,
@@ -1301,6 +1325,25 @@ class ApiService {
     return PagedResult.empty(page: page, size: size);
   }
 
+
+  /// Get inventory summary report by period: GET /reports/inventory/summary
+  Future<Map<String, dynamic>?> getInventorySummaryReport({
+    String? period,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      final data = await get('/reports/inventory/summary', queryParams: {
+        if (period != null && period.isNotEmpty) 'period': period,
+        if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
+        if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
+      });
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+    } catch (_) {}
+    return null;
+  }
 
   /// Stock transaction report: GET /reports/stock-transactions
   Future<List<dynamic>> getStockTransactionReport({

@@ -1,4 +1,4 @@
-/// App-wide constants
+﻿/// App-wide constants
 class AppConstants {
   // App info
   static const appName = 'Inventory Manager';

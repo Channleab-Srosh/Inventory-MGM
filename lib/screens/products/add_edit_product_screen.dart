@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
@@ -6,6 +6,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/supplier_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/product.dart';
+import '../../data/api_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../core/widgets/product_image.dart';
@@ -34,6 +35,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   String? _selectedSupplierId;
   String _status = 'Active';
   late String _unit;
+  final List<String> _units = List.from(Product.commonUnits);
   bool _saving = false;
 
   bool get _isEditing => widget.productId != null;
@@ -56,11 +58,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _descCtrl = TextEditingController(text: product?.description ?? '');
 
     final initialUnit = product?.unit.toLowerCase() ?? 'pcs';
-    if (Product.commonUnits.contains(initialUnit)) {
-      _unit = initialUnit;
-    } else {
-      _unit = 'pcs';
+    if (!_units.contains(initialUnit)) {
+      _units.add(initialUnit);
     }
+    _unit = initialUnit;
+    _loadBackendUnits();
 
     _selectedCategoryId = product?.categoryId;
     _selectedSupplierId = product?.supplierId;
@@ -94,10 +96,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SafeArea(
         child: Wrap(children: [
           ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
+            leading: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
             title: const Text('Choose from gallery'),
             onTap: () {
               Navigator.pop(context);
@@ -105,13 +110,22 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.camera_alt_outlined),
+            leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
             title: const Text('Take a photo'),
             onTap: () {
               Navigator.pop(context);
               _pickImage(ImageSource.camera);
             },
           ),
+          if (_pickedImage != null)
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+              title: const Text('Remove selected photo', style: TextStyle(color: AppColors.danger)),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _pickedImage = null);
+              },
+            ),
         ]),
       ),
     );
@@ -188,7 +202,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     // The create API has no image, so the photo is only handled when editing:
     // product is saved first (PUT), then the image is uploaded (POST /products/{id}/image).
     bool imageFailed = false;
-    if (success && _isEditing && productId != null && _pickedImage != null) {
+    if (success && productId != null && _pickedImage != null) {
       imageFailed = !await products.uploadImage(productId, _pickedImage!);
     }
 
@@ -262,20 +276,24 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Photo: edit only (create API has no image)
-                if (_isEditing) ...[
-                    Center(
-                      child: GestureDetector(
+                // Product Photo (Works for both Add and Edit)
+                Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
                         onTap: _showImageSourceSheet,
                         child: Container(
-                          width: 100,
-                          height: 100,
+                          width: 110,
+                          height: 110,
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(16),
+                            color: AppColors.primary.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.3)),
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              width: 1.5,
+                            ),
                           ),
                           child: _pickedImage != null
                               ? Image.file(_pickedImage!, fit: BoxFit.cover)
@@ -284,21 +302,76 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                   fallback: const Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.camera_alt_outlined,
-                                          color: AppColors.primary, size: 32),
-                                      SizedBox(height: 4),
-                                      Text('Add Photo',
-                                          style: TextStyle(
-                                              color: AppColors.primary,
-                                              fontSize: 11)),
+                                      Icon(Icons.add_a_photo_outlined,
+                                          color: AppColors.primary, size: 34),
+                                      SizedBox(height: 6),
+                                      Text(
+                                        'Add Photo',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
                         ),
                       ),
-                    ),
-                  const SizedBox(height: 24),
-                ],
+                      Positioned(
+                        bottom: -4,
+                        right: -4,
+                        child: GestureDetector(
+                          onTap: _showImageSourceSheet,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              (_pickedImage != null || _existingImage != null)
+                                  ? Icons.edit
+                                  : Icons.add,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_pickedImage != null)
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _pickedImage = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 _sectionLabel(theme, 'Basic Information'),
                 const SizedBox(height: 8),
@@ -434,7 +507,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                     labelText: 'Unit of Measure *',
                     prefixIcon: Icon(Icons.straighten_outlined, size: 20),
                   ),
-                  items: Product.commonUnits
+                  items: _units
                       .map((u) => DropdownMenuItem(
                             value: u,
                             child: Text(
@@ -544,34 +617,65 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         style: theme.textTheme.titleMedium?.copyWith(color: AppColors.primary));
   }
 
+
+  Future<void> _loadBackendUnits() async {
+    try {
+      final backendUnits = await ApiService().getUnitsOfMeasure();
+      if (backendUnits.isNotEmpty && mounted) {
+        setState(() {
+          for (final u in backendUnits) {
+            final lower = u.toLowerCase();
+            if (!_units.contains(lower)) {
+              _units.add(lower);
+            }
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
   String _unitDescription(String unit) {
-    switch (unit) {
+    switch (unit.toLowerCase()) {
       case 'pcs':
         return 'Pieces';
+      case 'box':
+        return 'Boxes';
+      case 'pack':
+        return 'Packs';
+      case 'bottle':
+        return 'Bottles';
       case 'can':
         return 'Cans / Tins';
       case 'kg':
         return 'Kilograms';
-      case 'g':
-        return 'Grams';
-      case 'box':
-        return 'Boxes';
-      case 'bottle':
-        return 'Bottles';
-      case 'pack':
-        return 'Packs';
       case 'liter':
         return 'Liters';
+      case 'dozen':
+        return 'Dozens (12 pcs)';
+      case 'case':
+        return 'Cases';
       case 'carton':
         return 'Cartons';
+      case 'bundle':
+        return 'Bundles';
+      case 'bale':
+        return 'Bales';
+      case 'sack':
+        return 'Sacks';
       case 'bag':
         return 'Bags';
+      case 'pallet':
+        return 'Pallets';
+      case 'roll':
+        return 'Rolls';
       case 'set':
         return 'Sets';
-      case 'unit':
-        return 'Units';
+      case 'pair':
+        return 'Pairs';
+      case 'tray':
+        return 'Trays';
       default:
-        return unit;
+        return unit.toUpperCase();
     }
   }
 }

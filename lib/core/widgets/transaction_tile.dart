@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../models/stock_movement.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_utils.dart';
@@ -27,12 +26,18 @@ class TransactionTile extends StatelessWidget {
     final typeLabel = isIn ? 'STOCK IN' : 'STOCK OUT';
 
     final now = DateTime.now();
-    final isToday = movement.date.year == now.year &&
-        movement.date.month == now.month &&
-        movement.date.day == now.day;
-    final dateStr = isToday
-        ? 'Today, ${AppUtils.formatTime(movement.date)}'
-        : DateFormat('MMM d, HH:mm').format(movement.date);
+    final today = DateTime(now.year, now.month, now.day);
+    final txDay = DateTime(movement.date.year, movement.date.month, movement.date.day);
+    final diffDays = today.difference(txDay).inDays;
+
+    final String dateStr;
+    if (diffDays == 0) {
+      dateStr = 'Today · ${AppUtils.formatTime(movement.date)}';
+    } else if (diffDays == 1) {
+      dateStr = 'Yesterday · ${AppUtils.formatTime(movement.date)}';
+    } else {
+      dateStr = AppUtils.formatDateTime(movement.date);
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

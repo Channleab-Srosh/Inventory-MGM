@@ -1,4 +1,4 @@
-/// Category model
+﻿/// Category model
 class Category {
   final String id;
   String name;

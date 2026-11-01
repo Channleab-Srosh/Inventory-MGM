@@ -6,10 +6,22 @@ import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/utils/app_utils.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../../models/stock_movement.dart';
 import 'widgets/movement_detail_card.dart';
 import 'widgets/history_filter_sheet.dart';
+
+class _HistoryUserOption {
+  final String id;
+  final String name;
+  final String roleDisplayName;
+  const _HistoryUserOption({
+    required this.id,
+    required this.name,
+    required this.roleDisplayName,
+  });
+}
 
 /// Stock History Screen with minimalist header and pill filter UI
 class HistoryScreen extends StatefulWidget {
@@ -52,7 +64,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void _showFilterSheet(BuildContext context) {
     final stock = context.read<StockProvider>();
     final products = context.read<ProductProvider>().allProducts;
-    final users = context.read<AuthProvider>().users;
+    final authUsers = context.read<AuthProvider>().users;
+
+    // Collect distinct users from both AuthProvider and stock movements
+    final userMap = <String, _HistoryUserOption>{};
+    for (final u in authUsers) {
+      userMap[u.id.toString()] = _HistoryUserOption(
+        id: u.id.toString(),
+        name: u.name,
+        roleDisplayName: u.roleDisplayName,
+      );
+    }
+    for (final m in stock.allMovements) {
+      if (m.userId.isNotEmpty && !userMap.containsKey(m.userId)) {
+        userMap[m.userId] = _HistoryUserOption(
+          id: m.userId,
+          name: m.userName,
+          roleDisplayName: 'User',
+        );
+      }
+    }
 
     HistoryFilterSheet.show(
       context: context,
@@ -62,12 +93,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
       currentProduct: stock.productFilter,
       currentUser: stock.userFilter,
       products: products,
-      users: users,
+      users: userMap.values.toList(),
       onApply: (type, start, end, productId, userId) {
-        stock.setTypeFilter(type);
-        stock.setDateRange(start, end);
-        stock.setProductFilter(productId);
-        stock.setUserFilter(userId);
+        stock.applyFilters(
+          type: type,
+          start: start,
+          end: end,
+          productId: productId,
+          userId: userId,
+        );
         Navigator.pop(context);
       },
       onClear: () {
@@ -96,6 +130,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         stock.endDate != null ||
         stock.productFilter != null ||
         stock.userFilter != null;
+    final hasSearch = stock.search.trim().isNotEmpty;
+    final isFiltering = hasActiveFilters || hasSearch;
+
+    int totalUnits = 0;
+    int stockInUnits = 0;
+    int stockOutUnits = 0;
+    for (final m in filtered) {
+      totalUnits += m.quantity;
+      if (m.isStockIn) {
+        stockInUnits += m.quantity;
+      } else {
+        stockOutUnits += m.quantity;
+      }
+    }
+    final netUnits = stockInUnits - stockOutUnits;
 
     final grouped = <String, List<StockMovement>>{};
     for (final m in filtered) {
@@ -233,53 +282,165 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
 
-            // Active filter pill banner
-            if (hasActiveFilters)
+            // Filter / Search Active Summary Card
+            if (isFiltering)
               Padding(
-                padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 0),
+                padding: EdgeInsets.fromLTRB(hPad, 10, hPad, 2),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryActive,
+                    color: AppColors.card,
                     borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                     border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                    boxShadow: AppColors.cardShadow,
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.tune_rounded, size: 16, color: AppColors.primaryDark),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Filtered results (${filtered.length} transactions)',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          stock.clearFilters();
-                          _searchCtrl.clear();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.card,
-                            borderRadius: BorderRadius.circular(AppTheme.pillRadius),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Text(
-                            'Clear all',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.secondaryText,
+                      // Header: Icon + Result Count + Clear Button
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryActive,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.tune_rounded,
+                              size: 14,
+                              color: AppColors.primaryDark,
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Filtered Results (${filtered.length} transaction${filtered.length == 1 ? "" : "s"})',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                if (hasSearch)
+                                  Text(
+                                    'Query: "${stock.search.trim()}"',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.secondaryText,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              stock.clearFilters();
+                              _searchCtrl.clear();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryActive,
+                                borderRadius: BorderRadius.circular(AppTheme.pillRadius),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.close_rounded, size: 12, color: AppColors.primaryDark),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Clear',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 10),
+                      // Stats Row: Total Units, Stock In, Stock Out
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _FilterMetricTile(
+                              label: 'Total Units',
+                              value: AppUtils.formatNumber(totalUnits),
+                              color: AppColors.primaryDark,
+                              bgColor: AppColors.primaryActive,
+                              icon: Icons.inventory_2_outlined,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _FilterMetricTile(
+                              label: 'Stock In',
+                              value: '+${AppUtils.formatNumber(stockInUnits)}',
+                              color: AppColors.chartIn,
+                              bgColor: AppColors.inStockBg,
+                              icon: Icons.arrow_downward_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _FilterMetricTile(
+                              label: 'Stock Out',
+                              value: '-${AppUtils.formatNumber(stockOutUnits)}',
+                              color: AppColors.chartOut,
+                              bgColor: AppColors.outOfStockBg,
+                              icon: Icons.arrow_upward_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (stockInUnits > 0 && stockOutUnits > 0) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.swap_vert_rounded, size: 14, color: AppColors.secondaryText),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Net Stock Change',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.secondaryText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '${netUnits >= 0 ? "+" : ""}${AppUtils.formatNumber(netUnits)} units',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: netUnits >= 0 ? AppColors.chartIn : AppColors.chartOut,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -385,6 +546,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     final key = sortedKeys[dayIdx];
                                     final movements = grouped[key]!;
                                     final date = DateTime.parse(key);
+                                    final dayUnits = movements.fold<int>(0, (sum, m) => sum + m.quantity);
 
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,10 +582,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                               ),
                                               const SizedBox(width: 10),
                                               Text(
-                                                '${movements.length} record${movements.length > 1 ? "s" : ""}',
+                                                '${movements.length} record${movements.length > 1 ? "s" : ""} · ${AppUtils.formatNumber(dayUnits)} units',
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   color: AppColors.secondaryText,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
                                               ),
                                             ],
@@ -444,5 +607,69 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ),
   ),
 );
+  }
+}
+
+class _FilterMetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final Color bgColor;
+  final IconData icon;
+
+  const _FilterMetricTile({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.bgColor,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.9),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: color,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,4 +1,4 @@
-/// Inventory report response model matching backend InventoryReportResponse.java
+﻿/// Inventory report response model matching backend InventoryReportResponse.java
 class InventoryReportItem {
   final String id;
   final String sku;

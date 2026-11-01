@@ -101,7 +101,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      context.go('/dashboard');
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline, color: AppColors.success, size: 52),
+          title: const Text('Registration Submitted', textAlign: TextAlign.center),
+          content: const Text(
+            'Your email has been verified! Your account is now pending administrator approval before you can log in.\n\nPlease notify your system administrator to approve your account.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.go('/login');
+                },
+                child: const Text('Back to Login'),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 

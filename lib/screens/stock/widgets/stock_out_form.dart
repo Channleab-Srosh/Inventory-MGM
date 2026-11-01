@@ -13,7 +13,8 @@ import 'stock_form_components.dart';
 
 /// Form widget for recording Stock Out
 class StockOutForm extends StatefulWidget {
-  const StockOutForm({super.key});
+  final String? initialProductId;
+  const StockOutForm({super.key, this.initialProductId});
 
   @override
   State<StockOutForm> createState() => _StockOutFormState();
@@ -28,6 +29,34 @@ class _StockOutFormState extends State<StockOutForm> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialProductId != null) {
+      _applyInitialProduct(widget.initialProductId!);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant StockOutForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialProductId != null &&
+        widget.initialProductId != oldWidget.initialProductId) {
+      _applyInitialProduct(widget.initialProductId!);
+    }
+  }
+
+  Future<void> _applyInitialProduct(String productId) async {
+    final products = context.read<ProductProvider>();
+    final p = products.findById(productId) ??
+        await products.fetchProductById(productId);
+    if (mounted && p != null) {
+      setState(() {
+        _selectedProduct = p;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -84,6 +113,7 @@ class _StockOutFormState extends State<StockOutForm> {
         productId: _selectedProduct!.id,
         quantity: _quantity,
         note: note,
+        transactionDate: _date,
       );
       products.adjustQuantity(_selectedProduct!.id, -_quantity);
       products.loadLowStock();
@@ -293,10 +323,18 @@ class _StockOutFormState extends State<StockOutForm> {
         const SizedBox(height: 24),
         const SectionHeader(title: 'Recent Stock Out'),
         const SizedBox(height: 8),
-        ...stock.recentTransactions
-            .where((m) => m.type == MovementType.stockOut)
-            .take(5)
-            .map((m) => StockRecentTile(movement: m)),
+        if (stock.recentStockOut.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                'No recent stock out records yet',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...stock.recentStockOut.map((m) => StockRecentTile(movement: m)),
         const SizedBox(height: 80),
       ],
     );

@@ -216,7 +216,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Register Screen - registers via API and logs in the new user
+  /// Register Screen - registers via API (account will be pending admin approval)
   Future<bool> register({
     required String username,
     required String email,
@@ -238,16 +238,9 @@ class AuthProvider extends ChangeNotifier {
         phone: phone?.trim(),
         otp: otp.trim(),
       );
-      final userData = await _api.getCurrentUser();
-      _user = UserProfile.fromJson(userData);
-      await _api.saveStoredUserData(jsonEncode(_user!.toJson()));
-      _isAuthenticated = true;
+      // Account created successfully in pending state; user must wait for admin approval
       _loading = false;
       notifyListeners();
-
-      if (_user!.isAdmin) {
-        fetchUsers();
-      }
       return true;
     } catch (e) {
       _user = null;
@@ -306,6 +299,10 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       await _api.changePassword(currentPassword, newPassword);
+      if (_user != null) {
+        _user = _user!.copyWith(mustChangePassword: false);
+        await _api.saveStoredUserData(jsonEncode(_user!.toJson()));
+      }
       _loading = false;
       notifyListeners();
       return true;
@@ -322,6 +319,10 @@ class AuthProvider extends ChangeNotifier {
       if (isCurrentValid) {
         if (userId != null) {
           _passwords[userId] = newPassword;
+        }
+        if (_user != null) {
+          _user = _user!.copyWith(mustChangePassword: false);
+          await _api.saveStoredUserData(jsonEncode(_user!.toJson()));
         }
         _loading = false;
         _error = null;

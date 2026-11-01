@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// Manages app settings: theme, currency, low-stock threshold, notifications
 class SettingsProvider extends ChangeNotifier {

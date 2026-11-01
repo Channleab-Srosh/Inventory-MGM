@@ -1,4 +1,4 @@
-/// Generic container for paginated backend responses matching backend PageResponse<T>
+﻿/// Generic container for paginated backend responses matching backend PageResponse<T>
 class PagedResult<T> {
   final List<T> items;
   final int page;

@@ -1,4 +1,4 @@
-/// Stock status of a product
+﻿/// Stock status of a product
 enum StockStatus { inStock, lowStock, outOfStock }
 
 /// Product model
@@ -28,6 +28,18 @@ class Product {
     'can',
     'kg',
     'liter',
+    'dozen',
+    'case',
+    'carton',
+    'bundle',
+    'bale',
+    'sack',
+    'bag',
+    'pallet',
+    'roll',
+    'set',
+    'pair',
+    'tray',
   ];
 
   Product({

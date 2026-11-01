@@ -177,7 +177,10 @@ class _LowStockReportTabState extends State<LowStockReportTab> {
                   ],
                 ),
                 trailing: ElevatedButton(
-                  onPressed: () => context.go('/stock'),
+                  onPressed: () {
+                    final targetQty = deficit > 0 ? deficit : 1;
+                    context.go('/stock?tab=in&productId=${p.id}&quantity=$targetQty');
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.chartIn,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -228,7 +231,10 @@ class _LowStockReportTabState extends State<LowStockReportTab> {
                   ],
                 ),
                 trailing: ElevatedButton(
-                  onPressed: () => context.go('/stock'),
+                  onPressed: () {
+                    final targetQty = deficit > 0 ? deficit : 1;
+                    context.go('/stock?tab=in&productId=${p.id}&quantity=$targetQty');
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.chartIn,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

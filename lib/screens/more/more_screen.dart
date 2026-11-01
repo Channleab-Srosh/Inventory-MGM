@@ -135,6 +135,14 @@ class MoreScreen extends StatelessWidget {
         const _SectionLabel(label: 'INVENTORY OPERATIONS'),
         const SizedBox(height: 8),
         _MenuCard(items: [
+          _MenuItem(
+            icon: Icons.inventory_2_rounded,
+            label: 'Products',
+            subtitle: 'Catalog, pricing & product management',
+            iconBgColor: const Color(0xFFFEF3C7),
+            iconColor: const Color(0xFFD97706),
+            onTap: () => context.push('/more/products'),
+          ),
           if (user?.canViewCategories == true)
             _MenuItem(
               icon: Icons.category_rounded,

@@ -40,6 +40,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthProvider>();
     final ok = await auth.login(_emailCtrl.text.trim(), _passCtrl.text);
     if (ok && mounted) {
+      if (auth.user?.mustChangePassword == true) {
+        context.go('/force-change-password');
+        return;
+      }
       try {
         await Future.wait([
           context.read<CategoryProvider>().fetchCategories(),

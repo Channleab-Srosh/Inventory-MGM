@@ -159,7 +159,7 @@ class _ProductSelectorSheetState extends State<ProductSelectorSheet> {
   }
 }
 
-/// Simple reusable date picker field
+/// Date & Time picker field for recording stock transactions
 class DatePickerField extends StatelessWidget {
   final DateTime date;
   final ValueChanged<DateTime> onChanged;
@@ -174,13 +174,26 @@ class DatePickerField extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () async {
-        final picked = await showDatePicker(
+        final pickedDate = await showDatePicker(
           context: context,
           initialDate: date,
           firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
         );
-        if (picked != null) onChanged(picked);
+        if (pickedDate != null && context.mounted) {
+          final pickedTime = await showTimePicker(
+            context: context,
+            initialTime: TimeOfDay.fromDateTime(date),
+          );
+          final finalDateTime = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime?.hour ?? date.hour,
+            pickedTime?.minute ?? date.minute,
+          );
+          onChanged(finalDateTime);
+        }
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -193,10 +206,16 @@ class DatePickerField extends StatelessWidget {
         child: Row(
           children: [
             const Icon(Icons.calendar_today_outlined,
-                color: AppColors.grey500, size: 18),
-            const SizedBox(width: 12),
-            Text(AppUtils.formatDate(date),
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+                color: AppColors.primary, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                AppUtils.formatDateTime(date),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+            const Icon(Icons.access_time_rounded,
+                color: AppColors.secondaryText, size: 18),
           ],
         ),
       ),
@@ -238,9 +257,12 @@ class StockRecentTile extends StatelessWidget {
       ),
       subtitle: Text(
         movement.stockBefore != null && movement.stockAfter != null
-            ? '${AppUtils.timeAgo(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
-            : AppUtils.timeAgo(movement.date),
-        style: theme.textTheme.bodyMedium,
+            ? '${AppUtils.formatDateTime(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
+            : AppUtils.formatDateTime(movement.date),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontSize: 11,
+          color: AppColors.secondaryText,
+        ),
       ),
       trailing: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 80),

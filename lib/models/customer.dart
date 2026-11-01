@@ -1,4 +1,4 @@
-/// Customer model matching backend CustomerResponse.java
+﻿/// Customer model matching backend CustomerResponse.java
 class Customer {
   final String id;
   String name;

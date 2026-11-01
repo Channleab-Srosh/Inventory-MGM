@@ -1,4 +1,4 @@
-/// Supplier model
+﻿/// Supplier model
 class Supplier {
   final String id;
   String name;

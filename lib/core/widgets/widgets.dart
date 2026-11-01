@@ -1,4 +1,4 @@
-export 'app_components.dart';
+﻿export 'app_components.dart';
 export 'common_widgets.dart';
 export 'error_view.dart';
 export 'loading_indicator.dart';

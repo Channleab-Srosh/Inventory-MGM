@@ -5,13 +5,19 @@ import '../../../providers/supplier_provider.dart';
 import '../../../providers/stock_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common_widgets.dart';
-import '../../../models/stock_movement.dart';
 import '../../../models/product.dart';
 import 'stock_form_components.dart';
 
 /// Form widget for recording Stock In
 class StockInForm extends StatefulWidget {
-  const StockInForm({super.key});
+  final String? initialProductId;
+  final int? initialQuantity;
+
+  const StockInForm({
+    super.key,
+    this.initialProductId,
+    this.initialQuantity,
+  });
 
   @override
   State<StockInForm> createState() => _StockInFormState();
@@ -27,6 +33,44 @@ class _StockInFormState extends State<StockInForm> {
   final _noteCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialQuantity != null && widget.initialQuantity! > 0) {
+      _quantity = widget.initialQuantity!;
+    }
+    if (widget.initialProductId != null) {
+      _applyInitialProduct(widget.initialProductId!);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant StockInForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialQuantity != null &&
+        widget.initialQuantity != oldWidget.initialQuantity) {
+      _quantity = widget.initialQuantity!;
+    }
+    if (widget.initialProductId != null &&
+        widget.initialProductId != oldWidget.initialProductId) {
+      _applyInitialProduct(widget.initialProductId!);
+    }
+  }
+
+  Future<void> _applyInitialProduct(String productId) async {
+    final products = context.read<ProductProvider>();
+    final p = products.findById(productId) ??
+        await products.fetchProductById(productId);
+    if (mounted && p != null) {
+      setState(() {
+        _selectedProduct = p;
+        if (p.supplierId.isNotEmpty) {
+          _selectedSupplierId = p.supplierId;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -59,6 +103,7 @@ class _StockInFormState extends State<StockInForm> {
         productId: _selectedProduct!.id,
         quantity: _quantity,
         note: note,
+        transactionDate: _date,
       );
       products.adjustQuantity(_selectedProduct!.id, _quantity);
       products.loadLowStock();
@@ -214,7 +259,9 @@ class _StockInFormState extends State<StockInForm> {
               // Supplier
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: _selectedSupplierId,
+                initialValue: suppliers.any((s) => s.id == _selectedSupplierId)
+                    ? _selectedSupplierId
+                    : null,
                 decoration:
                     const InputDecoration(labelText: 'Supplier (optional)'),
                 items: [
@@ -302,10 +349,18 @@ class _StockInFormState extends State<StockInForm> {
         // Recent transactions
         const SectionHeader(title: 'Recent Stock In'),
         const SizedBox(height: 8),
-        ...stock.recentTransactions
-            .where((m) => m.type == MovementType.stockIn)
-            .take(5)
-            .map((m) => StockRecentTile(movement: m)),
+        if (stock.recentStockIn.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                'No recent stock in records yet',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...stock.recentStockIn.map((m) => StockRecentTile(movement: m)),
         const SizedBox(height: 80),
       ],
     );

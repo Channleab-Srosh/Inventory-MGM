@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
+import '../../screens/auth/force_change_password_screen.dart';
 import '../../screens/shell/main_shell.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/products/products_screen.dart';
@@ -13,6 +14,7 @@ import '../../screens/stock/stock_screen.dart';
 import '../../screens/history/history_screen.dart';
 import '../../screens/more/more_screen.dart';
 import '../../screens/more/categories_screen.dart';
+import '../../screens/more/products_management_screen.dart';
 import '../../screens/more/suppliers_screen.dart';
 import '../../screens/more/customers_screen.dart';
 import '../../screens/more/reports_screen.dart';
@@ -33,7 +35,17 @@ class AppRouter {
       final onAuthPage = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       if (!isLoggedIn && !onAuthPage) return '/login';
-      if (isLoggedIn && onAuthPage) return '/dashboard';
+      if (isLoggedIn) {
+        if (auth.user?.mustChangePassword == true) {
+          if (state.matchedLocation != '/force-change-password') {
+            return '/force-change-password';
+          }
+          return null;
+        }
+        if (onAuthPage || state.matchedLocation == '/force-change-password') {
+          return '/dashboard';
+        }
+      }
       return null;
     },
     routes: [
@@ -45,6 +57,10 @@ class AppRouter {
       GoRoute(
         path: '/register',
         builder: (_, __) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/force-change-password',
+        builder: (_, __) => const ForceChangePasswordScreen(),
       ),
 
       // Shell with bottom nav
@@ -95,8 +111,15 @@ class AppRouter {
             path: '/stock',
             builder: (context, state) {
               final tab = state.uri.queryParameters['tab'];
+              final productId = state.uri.queryParameters['productId'];
+              final quantityStr = state.uri.queryParameters['quantity'];
+              final initialQuantity = int.tryParse(quantityStr ?? '');
               final initialTab = tab == 'out' ? 1 : 0;
-              return StockScreen(initialTab: initialTab);
+              return StockScreen(
+                initialTab: initialTab,
+                initialProductId: productId,
+                initialQuantity: initialQuantity,
+              );
             },
           ),
           GoRoute(
@@ -130,6 +153,11 @@ class AppRouter {
       GoRoute(
         path: '/more/history',
         redirect: (_, __) => '/history',
+      ),
+      GoRoute(
+        path: '/more/products',
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const ProductsManagementScreen(),
       ),
       GoRoute(
         path: '/more/categories',

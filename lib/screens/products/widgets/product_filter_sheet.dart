@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:inventory_management/core/theme/app_theme.dart';
 import 'package:inventory_management/models/product.dart';
 import 'package:inventory_management/models/category.dart';

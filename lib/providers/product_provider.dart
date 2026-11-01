@@ -336,6 +336,27 @@ class ProductProvider extends ChangeNotifier {
     try {
       return _products.firstWhere((p) => p.id == id);
     } catch (_) {
+      try {
+        return _lowStockProducts.firstWhere((p) => p.id == id);
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  /// Lazily fetch a single product by ID (used for deep linking / direct restock)
+  Future<Product?> fetchProductById(String id) async {
+    final existing = findById(id);
+    if (existing != null) return existing;
+    try {
+      final json = await _api.getProductById(id);
+      final product = Product.fromJson(json);
+      if (!_products.any((p) => p.id == product.id)) {
+        _products.add(product);
+        notifyListeners();
+      }
+      return product;
+    } catch (_) {
       return null;
     }
   }
@@ -510,7 +531,11 @@ class ProductProvider extends ChangeNotifier {
   String _normalizeUnit(String? unit) {
     if (unit == null || unit.isEmpty) return 'PCS';
     final upper = unit.trim().toUpperCase();
-    const valid = ['PCS', 'BOX', 'PACK', 'BOTTLE', 'CAN', 'KG', 'LITER'];
+    const valid = [
+      'PCS', 'BOX', 'PACK', 'BOTTLE', 'CAN', 'KG', 'LITER',
+      'DOZEN', 'CASE', 'CARTON', 'BUNDLE', 'BALE', 'SACK',
+      'BAG', 'PALLET', 'ROLL', 'SET', 'PAIR', 'TRAY'
+    ];
     if (valid.contains(upper)) return upper;
     return 'PCS';
   }

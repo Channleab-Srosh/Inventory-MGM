@@ -1,20 +1,23 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
 import 'package:inventory_management/core/theme/app_theme.dart';
+import 'package:inventory_management/providers/stock_provider.dart';
 
 /// Stock Flow Chart Card matching Image 1:
 /// - 24px pure white card with subtle border & soft shadow
-/// - Header: "Stock Flow" + "+18% Rise in Total Inventory Units" (left), "Last 7 days ˅" pill dropdown (right)
-/// - Gridless chart with percentage labels (45%, 20%, 50%, 35%, 100%) above each bar
+/// - Header: "Stock Flow" + dynamic trend Rise/Drop (left), "Daily / Weekly / Monthly ˅" pill dropdown (right)
+/// - Gridless chart with percentage labels above each bar
 /// - Multi-layered pastel stacked bars with smooth connecting area gradients underneath
+/// - Fully responsive to Daily (Today), Weekly (This Week), and Monthly (This Month) timeframes
 class DashboardStockChart extends StatefulWidget {
-  final List<double> stockIn;
-  final List<double> stockOut;
+  final List<double>? stockIn;
+  final List<double>? stockOut;
 
   const DashboardStockChart({
     super.key,
-    required this.stockIn,
-    required this.stockOut,
+    this.stockIn,
+    this.stockOut,
   });
 
   @override
@@ -22,19 +25,25 @@ class DashboardStockChart extends StatefulWidget {
 }
 
 class _DashboardStockChartState extends State<DashboardStockChart> {
-  String _selectedRange = 'Last 7 days';
+  String _selectedRange = 'Weekly';
 
   @override
   Widget build(BuildContext context) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    // Relative distribution matching mockup visual: 45%, 20%, 50%, 35%, 100%
-    const barPercentages = [45, 20, 50, 35, 100];
+    final stock = context.watch<StockProvider>();
+    final flow = stock.getStockFlowData(_selectedRange);
+
+    final days = flow.labels;
+    final barPercentages = flow.barPercentages;
+    final inQtys = flow.inQuantities;
+    final outQtys = flow.outQuantities;
     const maxPercent = 115.0;
 
     // Smooth curve points for area gradient underneath
     final areaSpots = List.generate(days.length, (i) {
       return FlSpot(i.toDouble(), barPercentages[i].toDouble());
     });
+
+    final double rodWidth = days.length > 5 ? 22.0 : (days.length == 4 ? 32.0 : 28.0);
 
     return Container(
       decoration: BoxDecoration(
@@ -52,11 +61,11 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Stock Flow',
                       style: TextStyle(
                         fontSize: 18,
@@ -67,22 +76,28 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
                         Icon(
-                          Icons.trending_up_rounded,
+                          flow.isPositive
+                              ? Icons.trending_up_rounded
+                              : Icons.trending_down_rounded,
                           size: 14,
-                          color: AppColors.inStockText,
+                          color: flow.isPositive
+                              ? AppColors.inStockText
+                              : AppColors.outOfStockText,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            '+18% Rise in Total Inventory Units',
+                            flow.trendText,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.inStockText,
+                              color: flow.isPositive
+                                  ? AppColors.inStockText
+                                  : AppColors.outOfStockText,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -95,7 +110,7 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
               ),
               const SizedBox(width: 8),
 
-              // Pill dropdown: 'Last 7 days ˅'
+              // Pill dropdown: 'Daily ˅', 'Weekly ˅', 'Monthly ˅'
               PopupMenuButton<String>(
                 initialValue: _selectedRange,
                 onSelected: (val) => setState(() => _selectedRange = val),
@@ -104,9 +119,9 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'Last 7 days', child: Text('Last 7 days')),
-                  const PopupMenuItem(value: 'Last 14 days', child: Text('Last 14 days')),
-                  const PopupMenuItem(value: 'Last 30 days', child: Text('Last 30 days')),
+                  const PopupMenuItem(value: 'Daily', child: Text('Daily (Today)')),
+                  const PopupMenuItem(value: 'Weekly', child: Text('Weekly (This Week)')),
+                  const PopupMenuItem(value: 'Monthly', child: Text('Monthly (This Month)')),
                 ],
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -152,7 +167,7 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
                   child: LineChart(
                     LineChartData(
                       minX: 0,
-                      maxX: 4,
+                      maxX: (days.length - 1).toDouble(),
                       minY: 0,
                       maxY: maxPercent,
                       gridData: const FlGridData(show: false),
@@ -200,8 +215,13 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
                         tooltipPadding:
                             const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         getTooltipItem: (group, _, rod, __) {
+                          final idx = group.x;
+                          final inU = idx < inQtys.length ? inQtys[idx].toInt() : 0;
+                          final outU = idx < outQtys.length ? outQtys[idx].toInt() : 0;
+                          final pct = idx < barPercentages.length ? barPercentages[idx] : 0;
+                          final label = idx < days.length ? days[idx] : '';
                           return BarTooltipItem(
-                            '${days[group.x]}: ${barPercentages[group.x]}%',
+                            '$label: +$inU In, -$outU Out ($pct%)',
                             const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -263,19 +283,31 @@ class _DashboardStockChartState extends State<DashboardStockChart> {
                     ),
                     barGroups: List.generate(days.length, (i) {
                       final total = barPercentages[i].toDouble();
+                      final inQ = inQtys[i];
+                      final outQ = outQtys[i];
+                      final activity = inQ + outQ;
 
-                      // Stacked pastel segment heights proportional to total
-                      final seg1 = total * 0.40; // Lavender base
-                      final seg2 = total * 0.70; // Mint green middle
-                      final seg3 = total * 0.90; // Peach layer
-                      final seg4 = total;        // Coral cap
+                      double seg1, seg2, seg3, seg4;
+                      if (activity > 0) {
+                        final inRatio = (inQ / activity).clamp(0.0, 1.0);
+                        seg1 = total * inRatio * 0.5;
+                        seg2 = total * inRatio;
+                        seg3 = seg2 + (total - seg2) * 0.5;
+                        seg4 = total;
+                      } else {
+                        // Stacked pastel segment heights proportional to total
+                        seg1 = total * 0.40; // Lavender base
+                        seg2 = total * 0.70; // Mint green middle
+                        seg3 = total * 0.90; // Peach layer
+                        seg4 = total;        // Coral cap
+                      }
 
                       return BarChartGroupData(
                         x: i,
                         barRods: [
                           BarChartRodData(
                             toY: total,
-                            width: 28,
+                            width: rodWidth,
                             borderRadius: BorderRadius.circular(6),
                             color: Colors.transparent,
                             rodStackItems: [

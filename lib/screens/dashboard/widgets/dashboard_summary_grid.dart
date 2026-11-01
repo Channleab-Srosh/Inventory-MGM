@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inventory_management/providers/product_provider.dart';
 import 'package:inventory_management/providers/stock_provider.dart';
@@ -6,6 +6,7 @@ import 'package:inventory_management/core/theme/app_theme.dart';
 import 'package:inventory_management/core/utils/app_utils.dart';
 import 'package:inventory_management/models/product.dart';
 import 'package:inventory_management/models/dashboard_summary.dart';
+import 'package:inventory_management/data/api_service.dart';
 
 /// Bento Metric Grid matching Image 1:
 /// 2x2 grid of square cards (24px radius):
@@ -31,30 +32,58 @@ class DashboardSummaryGrid extends StatefulWidget {
 
 class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
   String _selectedPeriod = 'Weekly';
+  final Map<String, DashboardSummary> _periodSummaries = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPeriodSummary(_selectedPeriod);
+  }
+
+  Future<void> _fetchPeriodSummary(String period) async {
+    final backendPeriod = period == 'Daily'
+        ? 'TODAY'
+        : (period == 'Monthly' ? 'THIS_MONTH' : 'THIS_WEEK');
+
+    try {
+      final json = await ApiService().getInventorySummaryReport(period: backendPeriod);
+      if (json != null && mounted) {
+        setState(() {
+          _periodSummaries[period] = DashboardSummary.fromJson(json);
+        });
+      }
+    } catch (_) {}
+  }
 
   void _changePeriod(String period) {
+    if (_selectedPeriod == period) return;
     setState(() => _selectedPeriod = period);
+    if (!_periodSummaries.containsKey(period)) {
+      _fetchPeriodSummary(period);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Total stock value from backend summary or local fallback
-    final double totalStockValue = widget.summary != null
-        ? widget.summary!.totalInventoryValue
+    final activeSummary = _periodSummaries[_selectedPeriod] ?? widget.summary;
+
+    // Total stock value from period report or fallback
+    final double totalStockValue = activeSummary != null
+        ? activeSummary.totalInventoryValue
         : widget.products.allProducts.fold<double>(
             0.0,
             (sum, p) => sum + (p.quantity * p.price),
           );
     final String formattedStockValue = AppUtils.formatCurrency(totalStockValue);
 
-    final String formattedTotalStock = widget.summary != null
-        ? AppUtils.formatNumber(widget.summary!.totalStockQuantity)
+    final String formattedTotalStock = activeSummary != null
+        ? AppUtils.formatNumber(activeSummary.totalStockQuantity)
         : AppUtils.formatNumber(widget.products.totalQuantity);
-    final String formattedOutOfStock = widget.summary != null
-        ? widget.summary!.outOfStockCount.toString().padLeft(2, '0')
+    final String formattedOutOfStock = activeSummary != null
+        ? activeSummary.outOfStockCount.toString().padLeft(2, '0')
         : widget.products.outOfStockCount.toString().padLeft(2, '0');
-    final String formattedLowStock = widget.summary != null
-        ? widget.summary!.lowStockCount.toString().padLeft(2, '0')
+    final String formattedLowStock = activeSummary != null
+        ? activeSummary.lowStockCount.toString().padLeft(2, '0')
         : widget.products.lowStockCount.toString().padLeft(2, '0');
 
     return LayoutBuilder(

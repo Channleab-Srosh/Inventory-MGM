@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:inventory_management/providers/stock_provider.dart';
 import 'package:inventory_management/providers/supplier_provider.dart';
 import 'package:inventory_management/core/theme/app_theme.dart';
 import 'package:inventory_management/core/widgets/common_widgets.dart';
+import 'package:inventory_management/core/utils/app_utils.dart';
 import 'package:inventory_management/models/stock_movement.dart';
 import '../widgets/report_header_banner.dart';
 
@@ -152,7 +152,7 @@ class _StockInReportTabState extends State<StockInReportTab> {
                               Text(m.productName,
                                   style: const TextStyle(fontWeight: FontWeight.bold)),
                               Text(
-                                '${DateFormat("MMM d, yyyy").format(m.date)} · by ${m.userName}',
+                                '${AppUtils.formatDateTime(m.date)} · by ${m.userName}',
                                 style: const TextStyle(
                                     fontSize: 11, color: AppColors.secondaryText),
                               ),

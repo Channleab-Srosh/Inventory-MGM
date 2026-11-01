@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// App color palette and theme configuration matching the new modern design system
 class AppColors {

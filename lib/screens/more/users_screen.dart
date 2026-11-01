@@ -166,9 +166,9 @@ class _UsersScreenState extends State<UsersScreen> {
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Inactive (${allUsers.length - activeCount})',
+                  label: 'Pending / Inactive (${allUsers.length - activeCount})',
                   selected: _selectedStatus == 'Inactive',
-                  color: AppColors.danger,
+                  color: const Color(0xFFD97706),
                   onSelected: (val) => setState(() => _selectedStatus = val ? 'Inactive' : null),
                 ),
               ],
@@ -226,14 +226,14 @@ class _UsersScreenState extends State<UsersScreen> {
 
   Future<void> _handleToggleStatus(BuildContext context, AuthProvider auth, UserProfile target) async {
     final willDeactivate = target.isActive;
-    final action = willDeactivate ? 'Deactivate' : 'Activate';
+    final action = willDeactivate ? 'Deactivate' : 'Approve & Activate';
 
     final confirmed = await ConfirmDialog.show(
       context,
-      title: '$action User',
+      title: willDeactivate ? 'Deactivate User' : 'Approve & Activate User',
       message: willDeactivate
           ? 'Deactivate account for "${target.name}"? They will no longer be able to log in.'
-          : 'Reactivate account for "${target.name}"? They will regain access to the system.',
+          : 'Approve and activate account for "${target.name}"? They will now be allowed to log in.',
       confirmLabel: action,
       confirmColor: willDeactivate ? AppColors.danger : AppColors.inStock,
     );
@@ -243,7 +243,7 @@ class _UsersScreenState extends State<UsersScreen> {
       if (ok && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${target.name} has been ${willDeactivate ? 'deactivated' : 'activated'}'),
+            content: Text('${target.name} has been ${willDeactivate ? 'deactivated' : 'approved and activated'}'),
             backgroundColor: willDeactivate ? AppColors.danger : AppColors.inStock,
           ),
         );
@@ -256,13 +256,22 @@ class _UsersScreenState extends State<UsersScreen> {
 
     if (newRole != null && newRole != target.role.toUpperCase() && context.mounted) {
       final ok = await auth.changeUserRole(target.id, newRole);
-      if (ok && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${target.name}\'s role changed to $newRole'),
-            backgroundColor: AppColors.primary,
-          ),
-        );
+      if (context.mounted) {
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${target.name}\'s role changed to $newRole'),
+              backgroundColor: AppColors.primary,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(auth.error ?? 'Cannot update user role to ADMIN. Maximum limit reached.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
       }
     }
   }

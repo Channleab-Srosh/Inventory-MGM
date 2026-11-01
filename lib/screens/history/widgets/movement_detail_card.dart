@@ -53,8 +53,11 @@ class MovementDetailCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Row(
+                      const SizedBox(height: 4),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -72,10 +75,24 @@ class MovementDetailCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            AppUtils.formatTime(movement.date),
-                            style: theme.textTheme.bodySmall,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 12,
+                                color: AppColors.secondaryText,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                AppUtils.formatDateTime(movement.date),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

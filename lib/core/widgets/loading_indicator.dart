@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// A small reusable widget so we don't repeat
 /// `CircularProgressIndicator()` boilerplate everywhere.

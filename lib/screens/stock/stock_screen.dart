@@ -10,7 +10,15 @@ import 'widgets/stock_out_form.dart';
 /// Stock In / Stock Out screen with minimalist pill segmented control
 class StockScreen extends StatefulWidget {
   final int initialTab;
-  const StockScreen({super.key, this.initialTab = 0});
+  final String? initialProductId;
+  final int? initialQuantity;
+
+  const StockScreen({
+    super.key,
+    this.initialTab = 0,
+    this.initialProductId,
+    this.initialQuantity,
+  });
 
   @override
   State<StockScreen> createState() => _StockScreenState();
@@ -275,16 +283,26 @@ class _StockScreenState extends State<StockScreen> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 720),
                         child: _selectedTab == 0
-                            ? const StockInForm()
+                            ? StockInForm(
+                                initialProductId: widget.initialProductId,
+                                initialQuantity: widget.initialQuantity,
+                              )
                             : (canStockOut
-                                ? const StockOutForm()
+                                ? StockOutForm(
+                                    initialProductId: widget.initialProductId,
+                                  )
                                 : _buildRestrictedView(context)),
                       ),
                     )
                   : _selectedTab == 0
-                      ? const StockInForm()
+                      ? StockInForm(
+                          initialProductId: widget.initialProductId,
+                          initialQuantity: widget.initialQuantity,
+                        )
                       : (canStockOut
-                          ? const StockOutForm()
+                          ? StockOutForm(
+                              initialProductId: widget.initialProductId,
+                            )
                           : _buildRestrictedView(context)),
             ),
           ],

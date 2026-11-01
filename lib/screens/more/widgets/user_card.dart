@@ -147,7 +147,7 @@ class UserCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: u.isActive
                             ? AppColors.inStock.withValues(alpha: 0.15)
-                            : AppColors.danger.withValues(alpha: 0.15),
+                            : const Color(0xFFD97706).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
@@ -155,13 +155,13 @@ class UserCard extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 3,
-                            backgroundColor: u.isActive ? AppColors.inStock : AppColors.danger,
+                            backgroundColor: u.isActive ? AppColors.inStock : const Color(0xFFD97706),
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            u.status.toUpperCase(),
+                            u.isActive ? 'ACTIVE' : 'PENDING APPROVAL',
                             style: TextStyle(
-                              color: u.isActive ? AppColors.inStock : AppColors.danger,
+                              color: u.isActive ? AppColors.inStock : const Color(0xFFD97706),
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
@@ -202,17 +202,18 @@ class UserCard extends StatelessWidget {
                         : onChangeRole,
                   ),
 
-                  // Toggle Status (Activate / Deactivate)
+                  // Toggle Status (Activate / Deactivate / Approve)
                   TextButton.icon(
                     icon: Icon(
-                      u.isActive ? Icons.block_outlined : Icons.check_circle_outline,
+                      u.isActive ? Icons.block_outlined : Icons.verified_user_outlined,
                       size: 16,
                       color: u.isActive ? AppColors.danger : AppColors.inStock,
                     ),
                     label: Text(
-                      u.isActive ? 'Deactivate' : 'Activate',
+                      u.isActive ? 'Deactivate' : 'Approve',
                       style: TextStyle(
                         color: u.isActive ? AppColors.danger : AppColors.inStock,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     onPressed: isCurrentLoggedIn

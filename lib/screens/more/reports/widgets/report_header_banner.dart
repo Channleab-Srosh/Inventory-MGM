@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:inventory_management/core/theme/app_theme.dart';
 
 /// Header banner displaying report title, period, and description.

@@ -1,4 +1,4 @@
-/// Type of stock movement
+﻿/// Type of stock movement
 enum MovementType { stockIn, stockOut }
 
 /// Reason for stock out
@@ -70,9 +70,9 @@ class StockMovement {
       userName: json['createdByUsername']?.toString() ??
           json['userName']?.toString() ??
           'User',
-      date: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+      date: (DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.tryParse(json['date']?.toString() ?? '') ??
-          DateTime.now(),
+          DateTime.now()).toLocal(),
     );
   }
 

@@ -11,6 +11,7 @@ class UserProfile {
   String status;
   String? avatarUrl;
   DateTime createdAt;
+  final bool mustChangePassword;
 
   UserProfile({
     required this.id,
@@ -24,6 +25,7 @@ class UserProfile {
     this.status = 'Active',
     this.avatarUrl,
     DateTime? createdAt,
+    this.mustChangePassword = false,
   }) : createdAt = createdAt ?? DateTime.now() {
     if (username == null || username!.isEmpty) {
       username = email.contains('@') ? email.split('@').first : email;
@@ -61,6 +63,7 @@ class UserProfile {
       status: status,
       avatarUrl: json['avatarUrl']?.toString(),
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      mustChangePassword: json['mustChangePassword'] == true,
     );
   }
 
@@ -75,6 +78,7 @@ class UserProfile {
       'phone': phone,
       'active': status.toLowerCase() == 'active',
       'createdAt': createdAt.toIso8601String(),
+      'mustChangePassword': mustChangePassword,
     };
   }
 
@@ -163,6 +167,7 @@ class UserProfile {
     String? status,
     String? avatarUrl,
     DateTime? createdAt,
+    bool? mustChangePassword,
   }) {
     return UserProfile(
       id: id,
@@ -176,6 +181,7 @@ class UserProfile {
       status: status ?? this.status,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       createdAt: createdAt ?? this.createdAt,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
     );
   }
 }

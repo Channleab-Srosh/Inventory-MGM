@@ -352,7 +352,7 @@ class ReportPdfService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(title,
-              style: pw.TextStyle(
+              style: const pw.TextStyle(
                   fontSize: 18,
                   fontWeight: pw.FontWeight.bold,
                   color: _primary)),
@@ -370,7 +370,7 @@ class ReportPdfService {
 
   static pw.Widget _sectionTitle(String text) {
     return pw.Text(text,
-        style: pw.TextStyle(
+        style: const pw.TextStyle(
             fontSize: 12, fontWeight: pw.FontWeight.bold, color: _text));
   }
 
@@ -395,7 +395,7 @@ class ReportPdfService {
                     style: const pw.TextStyle(fontSize: 8, color: _muted)),
                 pw.SizedBox(height: 3),
                 pw.Text(value,
-                    style: pw.TextStyle(
+                    style: const pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
                         color: _text)),
@@ -439,15 +439,15 @@ class ReportPdfService {
       columnWidths: widths,
       cellAlignments: alignments,
       headerAlignments: alignments,
-      headerStyle: pw.TextStyle(
+      headerStyle: const pw.TextStyle(
           fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
       headerDecoration: const pw.BoxDecoration(color: _primary),
       cellStyle: const pw.TextStyle(fontSize: 8.5, color: _text),
       cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       oddRowDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF7F7FB)),
-      border: pw.TableBorder(
-        bottom: const pw.BorderSide(color: _line),
-        horizontalInside: const pw.BorderSide(color: _line, width: 0.5),
+      border: const pw.TableBorder(
+        bottom: pw.BorderSide(color: _line),
+        horizontalInside: pw.BorderSide(color: _line, width: 0.5),
       ),
     );
   }
