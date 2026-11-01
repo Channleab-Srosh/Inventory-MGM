@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../core/services/report_pdf_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/settings_provider.dart';
 import 'reports/tabs/stock_summary_tab.dart';
 import 'reports/tabs/stock_in_report_tab.dart';
 import 'reports/tabs/stock_out_report_tab.dart';
 import 'reports/tabs/low_stock_report_tab.dart';
 import 'reports/tabs/transaction_history_tab.dart';
+
 
 enum DateFilterPeriod { today, thisWeek, thisMonth, custom }
 
@@ -98,7 +102,7 @@ class _ReportsScreenState extends State<ReportsScreen>
             Text('Period: ${_getPeriodLabel()}'),
             const SizedBox(height: 16),
             const Text(
-              'Select export format:',
+              'Export as:',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
@@ -107,33 +111,12 @@ class _ReportsScreenState extends State<ReportsScreen>
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.table_chart_outlined,
-                      color: AppColors.inStock),
-                  label: const Text('Excel (CSV)'),
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            '${_getReportTitle(_tabCtrl.index)} exported to CSV successfully!'),
-                        backgroundColor: AppColors.inStockText,
-                      ),
-                    );
-                  },
-                ),
-                OutlinedButton.icon(
                   icon: const Icon(Icons.picture_as_pdf_outlined,
                       color: AppColors.outOfStockText),
                   label: const Text('PDF Document'),
                   onPressed: () {
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            '${_getReportTitle(_tabCtrl.index)} exported to PDF successfully!'),
-                        backgroundColor: AppColors.primaryDark,
-                      ),
-                    );
+                    _exportPdf(context);
                   },
                 ),
               ],
@@ -148,6 +131,66 @@ class _ReportsScreenState extends State<ReportsScreen>
         ],
       ),
     );
+  }
+
+  /// Builds the PDF for the currently selected report tab and opens the
+  /// share / save sheet.
+  Future<void> _exportPdf(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final index = _tabCtrl.index;
+    final title = _getReportTitle(index);
+    final range = _getActiveDateRange();
+    final period = _getPeriodLabel();
+    final symbol = context.read<SettingsProvider>().currencySymbol;
+
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Generating $title PDF...')),
+          ],
+        ),
+        duration: const Duration(minutes: 2),
+      ),
+    );
+
+    try {
+      final bytes = await ReportPdfService.build(
+        reportIndex: index,
+        title: title,
+        periodLabel: period,
+        range: range,
+        currencySymbol: symbol,
+      );
+      messenger.hideCurrentSnackBar();
+      final path = await ReportPdfService.share(bytes, title);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('PDF saved: $path'),
+          duration: const Duration(seconds: 8),
+          backgroundColor: AppColors.primaryDark,
+        ),
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'PDF export failed: ${e.toString().replaceFirst('Exception: ', '')}'),
+          backgroundColor: AppColors.outOfStockText,
+        ),
+      );
+    }
   }
 
   String _getReportTitle(int index) {
@@ -318,7 +361,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               StockSummaryReportTab(dateRange: range, periodLabel: periodLabel),
               StockInReportTab(dateRange: range, periodLabel: periodLabel),
               StockOutReportTab(dateRange: range, periodLabel: periodLabel),
-              LowStockReportTab(periodLabel: periodLabel),
+              LowStockReportTab(dateRange: range, periodLabel: periodLabel),
               TransactionHistoryReportTab(dateRange: range, periodLabel: periodLabel),
             ],
           ),
