@@ -12,6 +12,7 @@ import '../../core/widgets/common_widgets.dart';
 import '../../models/product.dart';
 import '../../models/stock_movement.dart';
 import '../../core/widgets/product_image.dart';
+import '../history/widgets/movement_detail_card.dart';
 
 /// Product detail page: image, info, stock history
 class ProductDetailScreen extends StatelessWidget {
@@ -403,31 +404,68 @@ class _MovementTile extends StatelessWidget {
     final color = isIn ? AppColors.chartIn : AppColors.chartOut;
     final theme = Theme.of(context);
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () => MovementDetailCard.showMovementDetailSheet(context, movement),
+      borderRadius: BorderRadius.circular(8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(isIn ? Icons.arrow_downward : Icons.arrow_upward,
+              color: color, size: 18),
         ),
-        child: Icon(isIn ? Icons.arrow_downward : Icons.arrow_upward,
-            color: color, size: 18),
-      ),
-      title: Text(
-        isIn ? 'Stock In' : 'Stock Out',
-        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        movement.stockBefore != null && movement.stockAfter != null
-            ? '${AppUtils.formatDateTime(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
-            : AppUtils.formatDateTime(movement.date),
-        style: theme.textTheme.bodyMedium,
-      ),
-      trailing: Text(
-        '${isIn ? '+' : '-'}${movement.quantity} ${movement.unit ?? "pcs"}',
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+        title: Text(
+          isIn ? 'Stock In' : 'Stock Out',
+          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              movement.stockBefore != null && movement.stockAfter != null
+                  ? '${AppUtils.formatDateTime(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
+                  : AppUtils.formatDateTime(movement.date),
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (isIn && movement.unitCost != null && movement.unitCost! > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Unit Cost: ${AppUtils.formatCurrency(movement.unitCost!)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.chartIn,
+                  ),
+                ),
+              ),
+            if (isIn && movement.supplierName != null && movement.supplierName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Supplier: ${movement.supplierName}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                ),
+              )
+            else if (!isIn && movement.customerName != null && movement.customerName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Customer: ${movement.customerName}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.chartOut),
+                ),
+              ),
+          ],
+        ),
+        trailing: Text(
+          '${isIn ? '+' : '-'}${movement.quantity} ${movement.unit ?? "pcs"}',
+          style: TextStyle(color: color, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }

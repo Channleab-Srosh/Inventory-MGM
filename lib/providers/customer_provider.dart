@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import '../models/customer.dart';
 import '../models/user_profile.dart';
 import '../data/api_service.dart';
@@ -176,6 +176,11 @@ class CustomerProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Soft deactivation: set active = false via API
+  Future<bool> deactivateCustomer(String id) async {
+    return toggleCustomerStatus(id, false);
   }
 
   /// Delete Customer via API (Admin only)

@@ -26,6 +26,7 @@ class StockOutReportTab extends StatefulWidget {
 class _StockOutReportTabState extends State<StockOutReportTab> {
   List<StockMovement>? _reportMovements;
   bool _isLoading = false;
+  StockOutReason? _selectedReasonFilter;
 
   @override
   void initState() {
@@ -75,6 +76,13 @@ class _StockOutReportTabState extends State<StockOutReportTab> {
     final totalDamaged = outMovements
         .where((m) => m.reason == StockOutReason.damaged)
         .fold<int>(0, (s, m) => s + m.quantity);
+    final totalOther = outMovements
+        .where((m) => m.reason == StockOutReason.other)
+        .fold<int>(0, (s, m) => s + m.quantity);
+
+    final displayedMovements = _selectedReasonFilter == null
+        ? outMovements
+        : outMovements.where((m) => m.reason == _selectedReasonFilter).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -122,16 +130,57 @@ class _StockOutReportTabState extends State<StockOutReportTab> {
             Expanded(
               child: SummaryCard(
                 title: 'Damaged / Other',
-                value: '$totalDamaged units',
+                value: '${totalDamaged + totalOther} units',
                 icon: Icons.delete_sweep_outlined,
                 color: AppColors.danger,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
-        SectionHeader(title: 'Dispatched Transactions (${outMovements.length})'),
+        // Reason filter chips
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: Text('All (${outMovements.length})'),
+              selected: _selectedReasonFilter == null,
+              onSelected: (_) => setState(() => _selectedReasonFilter = null),
+            ),
+            ChoiceChip(
+              label: Text('Sales (${outMovements.where((m) => m.reason == StockOutReason.sale).length})'),
+              selected: _selectedReasonFilter == StockOutReason.sale,
+              selectedColor: AppColors.inStock.withValues(alpha: 0.15),
+              labelStyle: TextStyle(
+                color: _selectedReasonFilter == StockOutReason.sale ? AppColors.inStock : null,
+              ),
+              onSelected: (_) => setState(() => _selectedReasonFilter = StockOutReason.sale),
+            ),
+            ChoiceChip(
+              label: Text('Damaged (${outMovements.where((m) => m.reason == StockOutReason.damaged).length})'),
+              selected: _selectedReasonFilter == StockOutReason.damaged,
+              selectedColor: AppColors.danger.withValues(alpha: 0.15),
+              labelStyle: TextStyle(
+                color: _selectedReasonFilter == StockOutReason.damaged ? AppColors.danger : null,
+              ),
+              onSelected: (_) => setState(() => _selectedReasonFilter = StockOutReason.damaged),
+            ),
+            ChoiceChip(
+              label: Text('Other (${outMovements.where((m) => m.reason == StockOutReason.other).length})'),
+              selected: _selectedReasonFilter == StockOutReason.other,
+              selectedColor: AppColors.warning.withValues(alpha: 0.15),
+              labelStyle: TextStyle(
+                color: _selectedReasonFilter == StockOutReason.other ? AppColors.warning : null,
+              ),
+              onSelected: (_) => setState(() => _selectedReasonFilter = StockOutReason.other),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        SectionHeader(title: 'Dispatched Transactions (${displayedMovements.length})'),
         const SizedBox(height: 8),
         if (_isLoading)
           const Center(
@@ -140,19 +189,31 @@ class _StockOutReportTabState extends State<StockOutReportTab> {
               child: CircularProgressIndicator(),
             ),
           )
-        else if (outMovements.isEmpty)
+        else if (displayedMovements.isEmpty)
           const EmptyState(
             message: 'No Stock Out records in this period',
-            subtitle: 'Try changing the date filter at the top',
+            subtitle: 'Try changing the date or reason filter',
             icon: Icons.arrow_upward,
           )
         else
-          ...outMovements.map((m) {
-            final reasonText = m.reason == StockOutReason.sale
-                ? 'SALE'
-                : m.reason == StockOutReason.damaged
-                    ? 'DAMAGED'
-                    : 'OTHER';
+          ...displayedMovements.map((m) {
+            final String reasonText;
+            final Color reasonColor;
+            switch (m.reason) {
+              case StockOutReason.damaged:
+                reasonText = 'DAMAGED';
+                reasonColor = AppColors.danger;
+                break;
+              case StockOutReason.other:
+                reasonText = 'OTHER';
+                reasonColor = AppColors.warning;
+                break;
+              case StockOutReason.sale:
+              default:
+                reasonText = 'SALE';
+                reasonColor = AppColors.inStock;
+                break;
+            }
 
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
@@ -221,18 +282,22 @@ class _StockOutReportTabState extends State<StockOutReportTab> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.chartOut.withValues(alpha: 0.1),
+                              color: reasonColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: reasonColor.withValues(alpha: 0.3),
+                                width: 0.8,
+                              ),
                             ),
                             child: Text(
                               reasonText,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.chartOut),
+                                  color: reasonColor),
                             ),
                           ),
-                          if (m.reference != null)
+                          if (m.reference != null && m.reference!.isNotEmpty)
                             Text(
                               'Ref: ${m.reference}',
                               style: const TextStyle(

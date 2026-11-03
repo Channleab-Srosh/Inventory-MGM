@@ -1,4 +1,4 @@
-﻿/// App-wide constants
+/// App-wide constants
 class AppConstants {
   // App info
   static const appName = 'Inventory Manager';
@@ -7,12 +7,14 @@ class AppConstants {
   // Backend API Base URL
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://172.20.10.10:8080/api/v1',
+    defaultValue: 'http://172.20.10.2:8080/api/v1',
   );
 
   static String get defaultBaseUrl => baseUrl;
   static List<String> get candidateBaseUrls => [
     baseUrl,
+    'http://172.20.10.2:8080/api/v1',
+    'http://172.20.10.10:8080/api/v1',
     'http://localhost:8080/api/v1',
     'http://10.0.2.2:8080/api/v1',
   ];

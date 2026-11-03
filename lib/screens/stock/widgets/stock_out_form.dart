@@ -8,7 +8,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../models/stock_movement.dart';
 import '../../../models/product.dart';
-import '../../../models/customer.dart';
 import 'stock_form_components.dart';
 
 /// Form widget for recording Stock Out
@@ -23,7 +22,7 @@ class StockOutForm extends StatefulWidget {
 class _StockOutFormState extends State<StockOutForm> {
   final _formKey = GlobalKey<FormState>();
   Product? _selectedProduct;
-  Customer? _selectedCustomer;
+  String? _selectedCustomerId;
   int _quantity = 1;
   StockOutReason _reason = StockOutReason.sale;
   final _noteCtrl = TextEditingController();
@@ -36,6 +35,12 @@ class _StockOutFormState extends State<StockOutForm> {
     if (widget.initialProductId != null) {
       _applyInitialProduct(widget.initialProductId!);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cust = context.read<CustomerProvider>();
+      if (cust.allCustomers.isEmpty) {
+        cust.fetchCustomers();
+      }
+    });
   }
 
   @override
@@ -98,13 +103,17 @@ class _StockOutFormState extends State<StockOutForm> {
 
     final stock = context.read<StockProvider>();
     final products = context.read<ProductProvider>();
+    final custProv = context.read<CustomerProvider>();
+    final selectedCustomer = custProv.allCustomers
+        .where((c) => c.id == _selectedCustomerId)
+        .firstOrNull;
 
     setState(() => _submitting = true);
 
     try {
       final noteParts = [
         'Reason: ${_reason.name}',
-        if (_selectedCustomer != null) 'Customer: ${_selectedCustomer!.name}',
+        if (selectedCustomer != null) 'Customer: ${selectedCustomer.name}',
         if (_noteCtrl.text.trim().isNotEmpty) _noteCtrl.text.trim(),
       ];
       final note = noteParts.join(' - ');
@@ -112,6 +121,8 @@ class _StockOutFormState extends State<StockOutForm> {
       await stock.recordStockOut(
         productId: _selectedProduct!.id,
         quantity: _quantity,
+        customerId: _selectedCustomerId,
+        reason: _reason,
         note: note,
         transactionDate: _date,
       );
@@ -132,7 +143,7 @@ class _StockOutFormState extends State<StockOutForm> {
       setState(() {
         _submitting = false;
         _selectedProduct = null;
-        _selectedCustomer = null;
+        _selectedCustomerId = null;
         _quantity = 1;
         _reason = StockOutReason.sale;
         _noteCtrl.clear();
@@ -259,30 +270,57 @@ class _StockOutFormState extends State<StockOutForm> {
               // Customer selector
               Consumer<CustomerProvider>(
                 builder: (context, custProv, _) {
-                  final customers = custProv.allCustomers;
-                  if (customers.isEmpty) return const SizedBox.shrink();
+                  final customers = custProv.allCustomers
+                      .where((c) => c.isActive || c.id == _selectedCustomerId)
+                      .toList();
+                  final isCustomerRequired = _reason != StockOutReason.damaged;
+                  final currentVal =
+                      customers.any((c) => c.id == _selectedCustomerId)
+                          ? _selectedCustomerId
+                          : null;
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: DropdownButtonFormField<Customer?>(
+                    child: DropdownButtonFormField<String?>(
+                      key: ValueKey('customer_dropdown_${_reason.name}_$_selectedCustomerId'),
                       isExpanded: true,
-                      initialValue: _selectedCustomer,
-                      decoration: const InputDecoration(
-                        labelText: 'Customer (Optional)',
-                        prefixIcon: Icon(Icons.person_outline, size: 20),
+                      initialValue: currentVal,
+                      decoration: InputDecoration(
+                        labelText: isCustomerRequired
+                            ? 'Customer *'
+                            : 'Customer (optional for damage)',
+                        helperText: !isCustomerRequired
+                            ? 'Customer is not required for damaged goods'
+                            : null,
+                        prefixIcon: const Icon(Icons.person_outline, size: 20),
                       ),
+                      hint: Text(customers.isEmpty
+                          ? 'No customers available'
+                          : 'Select a customer'),
                       items: [
-                        const DropdownMenuItem<Customer?>(
-                          value: null,
-                          child: Text('No Customer Selected'),
-                        ),
-                        ...customers.map((c) => DropdownMenuItem<Customer?>(
-                              value: c,
-                              child: Text('${c.name} (${c.phone})',
-                                  overflow: TextOverflow.ellipsis),
+                        if (!isCustomerRequired)
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('No Customer (Damage)'),
+                          ),
+                        ...customers.map((c) => DropdownMenuItem<String?>(
+                              value: c.id,
+                              child: Text(
+                                c.isActive
+                                    ? '${c.name} (${c.phone})'
+                                    : '${c.name} (${c.phone}) (Inactive)',
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             )),
                       ],
+                      validator: (val) {
+                        if (isCustomerRequired && (val == null || val.isEmpty)) {
+                          return 'Customer is required for ${_reasonLabel(_reason).toLowerCase()} operations';
+                        }
+                        return null;
+                      },
                       onChanged: (val) =>
-                          setState(() => _selectedCustomer = val),
+                          setState(() => _selectedCustomerId = val),
                     ),
                   );
                 },

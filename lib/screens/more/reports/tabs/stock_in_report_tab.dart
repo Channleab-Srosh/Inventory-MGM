@@ -6,6 +6,7 @@ import 'package:inventory_management/core/theme/app_theme.dart';
 import 'package:inventory_management/core/widgets/common_widgets.dart';
 import 'package:inventory_management/core/utils/app_utils.dart';
 import 'package:inventory_management/models/stock_movement.dart';
+import '../../../history/widgets/movement_detail_card.dart';
 import '../widgets/report_header_banner.dart';
 
 /// Stock In Report Tab
@@ -127,83 +128,111 @@ class _StockInReportTabState extends State<StockInReportTab> {
                 m.supplierId != null ? suppliers.findById(m.supplierId!) : null;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppColors.chartIn.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => MovementDetailCard.showMovementDetailSheet(context, m),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.chartIn.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.arrow_downward,
+                                color: AppColors.chartIn, size: 16),
                           ),
-                          child: const Icon(Icons.arrow_downward,
-                              color: AppColors.chartIn, size: 16),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(m.productName,
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text(
+                                  '${AppUtils.formatDateTime(m.date)} · by ${m.userName}',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: AppColors.secondaryText),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '+${m.quantity} ${m.unit ?? "pcs"}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.chartIn,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (m.unitCost != null && m.unitCost! > 0) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.attach_money_rounded,
+                                size: 13, color: AppColors.chartIn),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Unit Cost: ${AppUtils.formatCurrency(m.unitCost!)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.chartIn,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '(Total: ${AppUtils.formatCurrency(m.unitCost! * m.quantity)})',
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.secondaryText),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(m.productName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              'Stock: ${m.stockBefore ?? "-"} → ${m.stockAfter ?? "-"} units',
+                              style: const TextStyle(
+                                  fontSize: 11, fontWeight: FontWeight.w500),
+                            ),
+                            if (sup != null)
                               Text(
-                                '${AppUtils.formatDateTime(m.date)} · by ${m.userName}',
+                                'Supplier: ${sup.name}',
                                 style: const TextStyle(
                                     fontSize: 11, color: AppColors.secondaryText),
                               ),
-                            ],
-                          ),
+                            if (m.reference != null)
+                              Text(
+                                'Ref: ${m.reference}',
+                                style: const TextStyle(
+                                    fontSize: 11, color: AppColors.secondaryText),
+                              ),
+                          ],
                         ),
-                        Text(
-                          '+${m.quantity} ${m.unit ?? "pcs"}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.chartIn,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.grey100,
-                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          Text(
-                            'Stock: ${m.stockBefore ?? "-"} → ${m.stockAfter ?? "-"} units',
-                            style: const TextStyle(
-                                fontSize: 11, fontWeight: FontWeight.w500),
-                          ),
-                          if (sup != null)
-                            Text(
-                              'Supplier: ${sup.name}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.secondaryText),
-                            ),
-                          if (m.reference != null)
-                            Text(
-                              'Ref: ${m.reference}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.secondaryText),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );

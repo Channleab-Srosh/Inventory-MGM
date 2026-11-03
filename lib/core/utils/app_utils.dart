@@ -54,4 +54,125 @@ class AppUtils {
 
   /// Format number with commas: 1,234
   static String formatNumber(int n) => NumberFormat('#,##0').format(n);
+
+  // ==========================================
+  // Validation Helpers
+  // ==========================================
+
+  /// Validates password complexity:
+  /// - Minimum 8 characters
+  /// - At least one uppercase letter (A-Z)
+  /// - At least one lowercase letter (a-z)
+  /// - At least one digit (0-9)
+  /// - At least one special character (!@#$%&* etc.)
+  static String? validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!value.contains(RegExp(r'[A-Z]'))) {
+      return 'Must include at least one uppercase letter (A-Z)';
+    }
+    if (!value.contains(RegExp(r'[a-z]'))) {
+      return 'Must include at least one lowercase letter (a-z)';
+    }
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Must include at least one number (0-9)';
+    }
+    if (!value.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>\-_+=~`]'))) {
+      return 'Must include at least one special character (!@#\$%&* etc.)';
+    }
+    return null;
+  }
+
+  /// Validates password confirmation
+  static String? validateConfirmPassword(String? value, String originalPassword) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm password';
+    }
+    if (value != originalPassword) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
+  /// Validates new password when changing password:
+  /// - Satisfies password complexity rules
+  /// - Cannot match current password
+  static String? validateNewPassword(String? value, String currentPassword) {
+    final basicError = validatePassword(value);
+    if (basicError != null) return basicError;
+    if (value == currentPassword) {
+      return 'New password cannot be the same as current password';
+    }
+    return null;
+  }
+
+  /// Validates username format and length
+  static String? validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Username is required';
+    }
+    final trimmed = value.trim();
+    if (trimmed.length < 3 || trimmed.length > 50) {
+      return 'Username must be between 3 and 50 characters';
+    }
+    if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(trimmed)) {
+      return 'Only letters, numbers, underscores, dots, and hyphens allowed';
+    }
+    return null;
+  }
+
+  /// Validates Gmail format
+  static String? validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Email is required';
+    }
+    final trimmed = value.trim();
+    final gmailRegex = RegExp(r'^[a-zA-Z0-9._%+\-]+@gmail\.com$');
+    if (!gmailRegex.hasMatch(trimmed)) {
+      return 'Only Gmail addresses (@gmail.com) are allowed';
+    }
+    return null;
+  }
+
+  /// Validates first name / last name
+  static String? validateNamePart(String? value, String fieldName) {
+    if (value == null || value.trim().isEmpty) {
+      return '$fieldName is required';
+    }
+    final trimmed = value.trim();
+    if (trimmed.length < 2 || trimmed.length > 50) {
+      return '$fieldName must be between 2 and 50 characters';
+    }
+    if (!RegExp(r"^[a-zA-Z\s'\-\.]+$").hasMatch(trimmed)) {
+      return 'Only letters, spaces, and hyphens allowed';
+    }
+    return null;
+  }
+
+  /// Validates optional phone number
+  static String? validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    final trimmed = value.trim();
+    if (!RegExp(r'^\+?[0-9\s\-]{8,20}$').hasMatch(trimmed)) {
+      return 'Enter a valid phone number (8-20 digits)';
+    }
+    return null;
+  }
+
+  /// Validates 6-digit OTP code
+  static String? validateOtp(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'OTP code is required';
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(value.trim())) {
+      return 'OTP must be exactly 6 digits';
+    }
+    return null;
+  }
 }

@@ -26,6 +26,7 @@ dependencies:
   http_parser: ^4.0.2
   pdf: ^3.11.1
   printing: ^5.13.4
+  archive: ^4.0.0
 
 dev_dependencies:
   flutter_test:

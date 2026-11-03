@@ -1,20 +1,21 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inventory_management/providers/product_provider.dart';
 import 'package:inventory_management/providers/stock_provider.dart';
 import 'package:inventory_management/core/theme/app_theme.dart';
 import 'package:inventory_management/core/utils/app_utils.dart';
 import 'package:inventory_management/models/product.dart';
+import 'package:inventory_management/models/stock_movement.dart';
 import 'package:inventory_management/models/dashboard_summary.dart';
-import 'package:inventory_management/data/api_service.dart';
 
-/// Bento Metric Grid matching Image 1:
-/// 2x2 grid of square cards (24px radius):
-/// - Top-Left: Solid lavender card (#A594F9), white circle icon, 'Weekly ˅', '$45,210', 'Total Stock Value', '↗'
-/// - Top-Right: Pure white card, mint green circle icon, 'Weekly ˅', '1,284', 'Total Stock', '↗'
-/// - Bottom-Left: Pure white card, coral circle icon, 'Weekly ˅', '08', 'Out of Stock', '↗'
-/// - Bottom-Right: Pure white card, amber circle icon, 'Weekly ˅', '23', 'Low Stock', '↗'
-class DashboardSummaryGrid extends StatefulWidget {
+/// Bento Metric Grid:
+/// 2x2 grid of square cards:
+/// - Top-Left: Solid lavender card (#A594F9), white circle icon, '$45,210', 'Total Stock Value', '↗'
+/// - Top-Right: Pure white card, mint green circle icon, '1,284', 'Total Stock', '↗'
+/// - Bottom-Left: Pure white card, coral circle icon, '08', 'Out of Stock', '↗'
+/// - Bottom-Right: Pure white card, amber circle icon, '23', 'Low Stock', '↗'
+/// Fixed to All Time (live snapshot) without period dropdowns.
+class DashboardSummaryGrid extends StatelessWidget {
   final ProductProvider products;
   final StockProvider stock;
   final DashboardSummary? summary;
@@ -26,65 +27,54 @@ class DashboardSummaryGrid extends StatefulWidget {
     this.summary,
   });
 
-  @override
-  State<DashboardSummaryGrid> createState() => _DashboardSummaryGridState();
-}
-
-class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
-  String _selectedPeriod = 'Weekly';
-  final Map<String, DashboardSummary> _periodSummaries = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchPeriodSummary(_selectedPeriod);
-  }
-
-  Future<void> _fetchPeriodSummary(String period) async {
-    final backendPeriod = period == 'Daily'
-        ? 'TODAY'
-        : (period == 'Monthly' ? 'THIS_MONTH' : 'THIS_WEEK');
-
-    try {
-      final json = await ApiService().getInventorySummaryReport(period: backendPeriod);
-      if (json != null && mounted) {
-        setState(() {
-          _periodSummaries[period] = DashboardSummary.fromJson(json);
-        });
-      }
-    } catch (_) {}
-  }
-
-  void _changePeriod(String period) {
-    if (_selectedPeriod == period) return;
-    setState(() => _selectedPeriod = period);
-    if (!_periodSummaries.containsKey(period)) {
-      _fetchPeriodSummary(period);
+  int _calculateNetStockUnits() {
+    if (summary?.netAvailableStock != null && summary!.netAvailableStock > 0) {
+      return summary!.netAvailableStock;
     }
+    if (products.totalQuantity > 0) {
+      return products.totalQuantity;
+    }
+    final inQty = stock.allMovements
+        .where((m) => m.type == MovementType.stockIn)
+        .fold<int>(0, (sum, m) => sum + m.quantity);
+    final outQty = stock.allMovements
+        .where((m) => m.type == MovementType.stockOut)
+        .fold<int>(0, (sum, m) => sum + m.quantity);
+    return inQty - outQty;
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeSummary = _periodSummaries[_selectedPeriod] ?? widget.summary;
-
-    // Total stock value from period report or fallback
-    final double totalStockValue = activeSummary != null
-        ? activeSummary.totalInventoryValue
-        : widget.products.allProducts.fold<double>(
-            0.0,
-            (sum, p) => sum + (p.quantity * p.price),
-          );
+    // 1. Total stock value (All Time live inventory)
+    final double totalStockValue = (summary?.totalInventoryValue ?? 0.0) > 0
+        ? summary!.totalInventoryValue
+        : products.allProducts
+            .where((p) => p.status.toLowerCase() == 'active' && p.quantity > 0)
+            .fold<double>(
+              0.0,
+              (sum, p) => sum + (p.quantity * p.price),
+            );
     final String formattedStockValue = AppUtils.formatCurrency(totalStockValue);
 
-    final String formattedTotalStock = activeSummary != null
-        ? AppUtils.formatNumber(activeSummary.totalStockQuantity)
-        : AppUtils.formatNumber(widget.products.totalQuantity);
-    final String formattedOutOfStock = activeSummary != null
-        ? activeSummary.outOfStockCount.toString().padLeft(2, '0')
-        : widget.products.outOfStockCount.toString().padLeft(2, '0');
-    final String formattedLowStock = activeSummary != null
-        ? activeSummary.lowStockCount.toString().padLeft(2, '0')
-        : widget.products.lowStockCount.toString().padLeft(2, '0');
+    // 2. Total Stock units on hand (All Time live available stock)
+    final int netStockUnits = (summary?.netAvailableStock ?? 0) > 0
+        ? summary!.netAvailableStock
+        : (products.totalQuantity > 0
+            ? products.totalQuantity
+            : _calculateNetStockUnits());
+    final String formattedTotalStock = AppUtils.formatNumber(netStockUnits);
+
+    // 3. Out of stock count (All Time)
+    final int outOfStockCount = (summary != null && summary!.outOfStockCount > 0)
+        ? summary!.outOfStockCount
+        : products.outOfStockCount;
+    final String formattedOutOfStock = outOfStockCount.toString().padLeft(2, '0');
+
+    // 4. Low stock count (All Time)
+    final int lowStockCount = (summary != null && summary!.lowStockCount > 0)
+        ? summary!.lowStockCount
+        : products.lowStockCount;
+    final String formattedLowStock = lowStockCount.toString().padLeft(2, '0');
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -118,8 +108,6 @@ class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
                 icon: Icons.inventory_2_outlined,
                 iconBg: Colors.white,
                 iconColor: AppColors.text,
-                period: _selectedPeriod,
-                onPeriodChanged: _changePeriod,
                 onTap: () => context.go('/products'),
               ),
             ),
@@ -136,8 +124,6 @@ class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
                 icon: Icons.all_inbox_rounded,
                 iconBg: AppColors.inStockBg,
                 iconColor: AppColors.inStockText,
-                period: _selectedPeriod,
-                onPeriodChanged: _changePeriod,
                 onTap: () => context.go('/products'),
               ),
             ),
@@ -154,10 +140,8 @@ class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
                 icon: Icons.inventory_outlined,
                 iconBg: AppColors.outOfStockBg,
                 iconColor: AppColors.outOfStockText,
-                period: _selectedPeriod,
-                onPeriodChanged: _changePeriod,
                 onTap: () {
-                  widget.products.setStatusFilter(StockStatus.outOfStock);
+                  products.setStatusFilter(StockStatus.outOfStock);
                   context.go('/products');
                 },
               ),
@@ -175,10 +159,8 @@ class _DashboardSummaryGridState extends State<DashboardSummaryGrid> {
                 icon: Icons.attach_money_rounded,
                 iconBg: AppColors.lowStockBg,
                 iconColor: AppColors.lowStockText,
-                period: _selectedPeriod,
-                onPeriodChanged: _changePeriod,
                 onTap: () {
-                  widget.products.setStatusFilter(StockStatus.lowStock);
+                  products.setStatusFilter(StockStatus.lowStock);
                   context.go('/products');
                 },
               ),
@@ -198,8 +180,6 @@ class _BentoMetricCard extends StatelessWidget {
   final IconData icon;
   final Color iconBg;
   final Color iconColor;
-  final String period;
-  final ValueChanged<String> onPeriodChanged;
   final VoidCallback onTap;
 
   const _BentoMetricCard({
@@ -210,8 +190,6 @@ class _BentoMetricCard extends StatelessWidget {
     required this.icon,
     required this.iconBg,
     required this.iconColor,
-    required this.period,
-    required this.onPeriodChanged,
     required this.onTap,
   });
 
@@ -242,11 +220,10 @@ class _BentoMetricCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Top Row: Circular pastel icon (left) & Pill dropdown ('Weekly ˅') (right)
+                // Top Row: Circular pastel icon (left) & Subtle diagonal arrow (right)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Circular icon
                     Container(
                       width: iconSize,
                       height: iconSize,
@@ -267,121 +244,47 @@ class _BentoMetricCard extends StatelessWidget {
                         child: Icon(icon, color: iconColor, size: isCompact ? 15 : 17),
                       ),
                     ),
-                    const SizedBox(width: 4),
-
-                    // Pill dropdown ('Weekly ˅')
-                    Flexible(
-                      child: PopupMenuButton<String>(
-                        initialValue: period,
-                        onSelected: onPeriodChanged,
-                        tooltip: 'Select range',
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'Daily', child: Text('Daily')),
-                          const PopupMenuItem(value: 'Weekly', child: Text('Weekly')),
-                          const PopupMenuItem(value: 'Monthly', child: Text('Monthly')),
-                        ],
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isPrimary
-                                ? Colors.white.withValues(alpha: 0.22)
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(AppTheme.pillRadius),
-                            border: Border.all(
-                              color: isPrimary
-                                  ? Colors.white.withValues(alpha: 0.25)
-                                  : AppColors.border,
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  period,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: isPrimary
-                                        ? Colors.white
-                                        : AppColors.secondaryText,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 13,
-                                color: isPrimary
-                                    ? Colors.white
-                                    : AppColors.secondaryText,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    Icon(
+                      Icons.arrow_outward_rounded,
+                      size: isCompact ? 16 : 18,
+                      color: isPrimary
+                          ? Colors.white.withValues(alpha: 0.8)
+                          : AppColors.grey500,
                     ),
                   ],
                 ),
 
-                // Bottom Row: Bold metric (bottom-left) & Tiny diagonal arrow ('↗') (bottom-right)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Bottom Row: Bold metric & title
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              value,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                                color: isPrimary ? Colors.white : AppColors.text,
-                              ),
-                              maxLines: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: isPrimary
-                                  ? Colors.white.withValues(alpha: 0.9)
-                                  : AppColors.secondaryText,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          color: isPrimary ? Colors.white : AppColors.text,
+                        ),
+                        maxLines: 1,
                       ),
                     ),
-
-                    // Tiny diagonal arrow ('↗')
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2, left: 4),
-                      child: Icon(
-                        Icons.arrow_outward_rounded,
-                        size: 16,
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
                         color: isPrimary
                             ? Colors.white.withValues(alpha: 0.9)
-                            : AppColors.text,
+                            : AppColors.secondaryText,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

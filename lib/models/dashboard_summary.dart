@@ -1,4 +1,4 @@
-﻿/// Dashboard summary metrics model matching backend DashboardSummaryResponse.java
+/// Dashboard summary metrics model matching backend DashboardSummaryResponse.java
 class DashboardSummary {
   final int totalProducts;
   final int totalCategories;
@@ -22,6 +22,15 @@ class DashboardSummary {
     this.totalStockOutQuantity = 0,
   });
 
+  /// Net available stock units in the warehouse (available units currently on hand)
+  int get netAvailableStock {
+    if (totalStockQuantity > 0) {
+      return totalStockQuantity;
+    }
+    final netFromTransactions = totalStockInQuantity - totalStockOutQuantity;
+    return netFromTransactions > 0 ? netFromTransactions : 0;
+  }
+
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     return DashboardSummary(
       totalProducts: (json['totalProducts'] as num?)?.toInt() ??
@@ -35,8 +44,12 @@ class DashboardSummary {
       totalInventoryValue: (json['totalInventoryValue'] as num?)?.toDouble() ??
           (json['totalInventoryValuation'] as num?)?.toDouble() ??
           0.0,
-      lowStockCount: (json['lowStockCount'] as num?)?.toInt() ?? 0,
-      outOfStockCount: (json['outOfStockCount'] as num?)?.toInt() ?? 0,
+      lowStockCount: (json['lowStockCount'] as num?)?.toInt() ??
+          ((json['stockSummary'] as Map<String, dynamic>?)?['lowStockCount'] as num?)?.toInt() ??
+          0,
+      outOfStockCount: (json['outOfStockCount'] as num?)?.toInt() ??
+          ((json['stockSummary'] as Map<String, dynamic>?)?['outOfStockCount'] as num?)?.toInt() ??
+          0,
       totalStockInQuantity: (json['totalStockInQuantity'] as num?)?.toInt() ?? 0,
       totalStockOutQuantity: (json['totalStockOutQuantity'] as num?)?.toInt() ?? 0,
     );

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import '../models/supplier.dart';
 import '../models/user_profile.dart';
 import '../data/api_service.dart';
@@ -168,9 +168,24 @@ class SupplierProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = (e is ApiException) ? e.message : e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Soft deactivation: set status = 'Inactive'
+  void deactivateSupplier(String id) {
+    if (_currentUser != null && !_currentUser!.canManageSuppliers) {
+      _error = 'Permission denied: Staff accounts cannot add, edit, or delete suppliers.';
+      notifyListeners();
+      return;
+    }
+
+    final idx = _suppliers.indexWhere((s) => s.id == id);
+    if (idx >= 0) {
+      _suppliers[idx] = _suppliers[idx].copyWith(status: 'Inactive');
+      notifyListeners();
     }
   }
 

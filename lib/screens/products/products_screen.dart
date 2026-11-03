@@ -268,7 +268,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   selected:
                                       products.selectedCategoryId == cat.id,
                                   onTap: () =>
-                                      products.setCategoryFilter(cat.id),
+                                      products.setCategoryFilter(
+                                          products.selectedCategoryId == cat.id
+                                              ? null
+                                              : cat.id),
                                 ),
                               ),
                             ),

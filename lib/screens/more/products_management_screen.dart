@@ -23,6 +23,7 @@ class ProductsManagementScreen extends StatefulWidget {
 
 class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
   final _searchCtrl = TextEditingController();
+  late final ScrollController _scrollCtrl;
   String _searchQuery = '';
   String? _statusFilter; // null=All, 'ACTIVE', 'INACTIVE', 'LOW_STOCK', 'OUT_OF_STOCK'
   String? _selectedCategory;
@@ -30,6 +31,7 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl = ScrollController()..addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final p = context.read<ProductProvider>();
       if (p.allProducts.isEmpty) p.fetchProducts();
@@ -38,8 +40,17 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
     });
   }
 
+  void _onScroll() {
+    if (_scrollCtrl.hasClients &&
+        _scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200) {
+      context.read<ProductProvider>().loadMoreProducts();
+    }
+  }
+
   @override
   void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -243,8 +254,17 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
         final matchCat = p.categoryName?.toLowerCase().contains(q) ?? false;
         if (!matchName && !matchSku && !matchCat) return false;
       }
-      if (_selectedCategory != null && p.categoryId != _selectedCategory) {
-        return false;
+      if (_selectedCategory != null) {
+        final selectedCatId = _selectedCategory!;
+        final selectedCat = catProv.findById(selectedCatId);
+        final matchesId = p.categoryId == selectedCatId;
+        final matchesName = selectedCat != null &&
+            p.categoryName != null &&
+            p.categoryName!.trim().toLowerCase() ==
+                selectedCat.name.trim().toLowerCase();
+        if (!matchesId && !matchesName) {
+          return false;
+        }
       }
       if (_statusFilter == 'ACTIVE' && p.status.toLowerCase() != 'active') {
         return false;
@@ -269,6 +289,69 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Product Management'),
+        actions: [
+          PopupMenuButton<String?>(
+            tooltip: 'Filter by Category',
+            icon: Badge(
+              isLabelVisible: _selectedCategory != null,
+              child: Icon(
+                _selectedCategory != null
+                    ? Icons.filter_alt_rounded
+                    : Icons.filter_alt_outlined,
+                color: _selectedCategory != null ? AppColors.primary : null,
+              ),
+            ),
+            initialValue: _selectedCategory,
+            onSelected: (catId) {
+              setState(() {
+                _selectedCategory = catId;
+              });
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem<String?>(
+                value: null,
+                child: Row(
+                  children: [
+                    Icon(Icons.clear_all_rounded, size: 20),
+                    SizedBox(width: 8),
+                    Text('All Categories'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              ...catProv.allCategories.map(
+                (cat) => PopupMenuItem<String?>(
+                  value: cat.id,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _selectedCategory == cat.id
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        size: 18,
+                        color: _selectedCategory == cat.id
+                            ? AppColors.primary
+                            : AppColors.secondaryText,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          cat.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: _selectedCategory == cat.id
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
@@ -333,6 +416,37 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
                         onSelected: () => setState(() => _statusFilter = _statusFilter == 'OUT_OF_STOCK' ? null : 'OUT_OF_STOCK'),
                       ),
                     ],
+                    if (catProv.allCategories.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        height: 24,
+                        width: 1,
+                        color: AppColors.border,
+                        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      ),
+                      const SizedBox(width: 8),
+                      ...catProv.allCategories.map((cat) {
+                        final catProductCount = allProducts
+                            .where((p) =>
+                                p.categoryId == cat.id ||
+                                (p.categoryName != null &&
+                                    p.categoryName!.trim().toLowerCase() ==
+                                        cat.name.trim().toLowerCase()))
+                            .length;
+                        final isSelected = _selectedCategory == cat.id;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _FilterChipItem(
+                            label: '${cat.name} ($catProductCount)',
+                            selected: isSelected,
+                            color: AppColors.primary,
+                            onSelected: () => setState(() {
+                              _selectedCategory = isSelected ? null : cat.id;
+                            }),
+                          ),
+                        );
+                      }),
+                    ],
                   ],
                 ),
               ),
@@ -371,7 +485,7 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
                                       const SizedBox(height: 80),
                                       EmptyState(
                                         message: 'No products found',
-                                        subtitle: _searchQuery.isNotEmpty
+                                        subtitle: _searchQuery.isNotEmpty || _selectedCategory != null || _statusFilter != null
                                             ? 'Try a different search term or clear filters'
                                             : 'Tap the + button to add a new product',
                                         icon: Icons.inventory_2_outlined,
@@ -379,10 +493,23 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
                                     ],
                                   )
                                 : ListView.separated(
+                                    controller: _scrollCtrl,
                                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
-                                    itemCount: filtered.length,
+                                    itemCount: filtered.length + (prodProv.isLoadingMore ? 1 : 0),
                                     separatorBuilder: (_, __) => const SizedBox(height: 6),
                                     itemBuilder: (_, i) {
+                                      if (i == filtered.length) {
+                                        return const Padding(
+                                          padding: EdgeInsets.symmetric(vertical: 16),
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          ),
+                                        );
+                                      }
                                       final product = filtered[i];
                                       final category = catProv.findById(product.categoryId);
 

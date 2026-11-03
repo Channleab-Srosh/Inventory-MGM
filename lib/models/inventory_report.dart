@@ -1,4 +1,4 @@
-﻿/// Inventory report response model matching backend InventoryReportResponse.java
+/// Inventory report response model matching backend InventoryReportResponse.java
 class InventoryReportItem {
   final String id;
   final String sku;
@@ -32,7 +32,7 @@ class InventoryReportItem {
 
   int get quantity => stockQuantity;
   int get minStockLevel => minimumStock;
-  bool get isLowStock => lowStock;
+  bool get isLowStock => stockQuantity > 0 && (lowStock || stockQuantity <= minimumStock);
   bool get isOutOfStock => stockQuantity <= 0;
 
   factory InventoryReportItem.fromJson(Map<String, dynamic> json) {

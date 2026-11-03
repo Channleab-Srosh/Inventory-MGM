@@ -118,7 +118,7 @@ class MoreScreen extends StatelessWidget {
               child: const Center(
                 child: Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.white,
+                  color: Colors.white, 
                   size: 20,
                 ),
               ),

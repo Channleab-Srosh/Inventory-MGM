@@ -710,7 +710,7 @@ class ApiService {
       if (search != null && search.isNotEmpty) 'search': search,
       'page': page,
       'size': size,
-      'sort': 'id,asc',
+      'sort': 'id,desc',
     });
     if (data is Map<String, dynamic> && data['content'] is List) {
       return data['content'] as List<dynamic>;
@@ -723,7 +723,7 @@ class ApiService {
     String? search,
     int page = 0,
     int size = 20,
-    String sort = 'id,asc',
+    String sort = 'id,desc',
   }) async {
     final data = await get('/customers', queryParams: {
       if (search != null && search.isNotEmpty) 'search': search,
@@ -807,6 +807,7 @@ class ApiService {
     bool? active,
     int page = 0,
     int size = 100,
+    String sort = 'id,desc',
   }) async {
     final parsedCatId = _parseNumericId(categoryId);
     final parsedSupId = _parseNumericId(supplierId);
@@ -818,7 +819,7 @@ class ApiService {
       if (active != null) 'active': active,
       'page': page,
       'size': size,
-      'sort': 'id,asc',
+      'sort': sort,
     });
     if (data is Map<String, dynamic> && data['content'] is List) {
       return data['content'] as List<dynamic>;
@@ -834,7 +835,7 @@ class ApiService {
     bool? active,
     int page = 0,
     int size = 20,
-    String sort = 'id,asc',
+    String sort = 'id,desc',
   }) async {
     final parsedCatId = _parseNumericId(categoryId);
     final parsedSupId = _parseNumericId(supplierId);
@@ -1028,10 +1029,13 @@ class ApiService {
   Future<Map<String, dynamic>> stockIn({
     required dynamic productId,
     required int quantity,
+    dynamic supplierId,
+    double? unitCost,
     String? note,
     DateTime? transactionDate,
   }) async {
     final pId = _parseNumericId(productId);
+    final sId = _parseNumericId(supplierId);
     final cleanNote = note != null && note.isNotEmpty
         ? (note.length > 255 ? note.substring(0, 255) : note)
         : null;
@@ -1039,6 +1043,8 @@ class ApiService {
     final data = await post('/stock/in', body: {
       'productId': pId,
       'quantity': quantity,
+      if (sId != null) 'supplierId': sId,
+      if (unitCost != null && unitCost > 0) 'unitCost': unitCost,
       if (cleanNote != null) 'note': cleanNote,
       if (transactionDate != null)
         'transactionDate': transactionDate.toUtc().toIso8601String(),
@@ -1050,10 +1056,13 @@ class ApiService {
   Future<Map<String, dynamic>> stockOut({
     required dynamic productId,
     required int quantity,
+    dynamic customerId,
+    String? reason,
     String? note,
     DateTime? transactionDate,
   }) async {
     final pId = _parseNumericId(productId);
+    final cId = _parseNumericId(customerId);
     final cleanNote = note != null && note.isNotEmpty
         ? (note.length > 255 ? note.substring(0, 255) : note)
         : null;
@@ -1061,6 +1070,8 @@ class ApiService {
     final data = await post('/stock/out', body: {
       'productId': pId,
       'quantity': quantity,
+      if (cId != null) 'customerId': cId,
+      if (reason != null && reason.isNotEmpty) 'reason': reason.toUpperCase(),
       if (cleanNote != null) 'note': cleanNote,
       if (transactionDate != null)
         'transactionDate': transactionDate.toUtc().toIso8601String(),
@@ -1073,6 +1084,8 @@ class ApiService {
     dynamic productId,
     dynamic type,
     dynamic userId,
+    dynamic supplierId,
+    dynamic customerId,
     DateTime? fromDate,
     DateTime? toDate,
     int page = 0,
@@ -1080,12 +1093,16 @@ class ApiService {
   }) async {
     final parsedProdId = _parseNumericId(productId);
     final parsedUserId = _parseNumericId(userId);
+    final parsedSupId = _parseNumericId(supplierId);
+    final parsedCustId = _parseNumericId(customerId);
     final normType = _normalizeTransactionType(type);
 
     final data = await get('/stock/history', queryParams: {
       if (parsedProdId != null) 'productId': parsedProdId,
       if (normType != null && normType.isNotEmpty) 'type': normType,
       if (parsedUserId != null) 'userId': parsedUserId,
+      if (parsedSupId != null) 'supplierId': parsedSupId,
+      if (parsedCustId != null) 'customerId': parsedCustId,
       if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
       if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
       'page': page,
@@ -1147,8 +1164,12 @@ class ApiService {
   // ==========================================
 
   /// Get dashboard KPI summary: GET /dashboard/summary
-  Future<Map<String, dynamic>> getDashboardSummary() async {
-    final data = await get('/dashboard/summary');
+  Future<Map<String, dynamic>> getDashboardSummary({String? period}) async {
+    final query = <String, dynamic>{};
+    if (period != null && period.isNotEmpty && period != 'ALL_TIME') {
+      query['period'] = period;
+    }
+    final data = await get('/dashboard/summary', queryParams: query.isNotEmpty ? query : null);
     return data as Map<String, dynamic>;
   }
 
@@ -1273,6 +1294,10 @@ class ApiService {
     dynamic supplierId,
     bool? active,
     bool? lowStockOnly,
+    String? period,
+    DateTime? fromDate,
+    DateTime? toDate,
+    String? zoneId,
     int page = 0,
     int size = 100,
   }) async {
@@ -1285,9 +1310,13 @@ class ApiService {
       if (parsedSupId != null) 'supplierId': parsedSupId,
       if (active != null) 'active': active,
       if (lowStockOnly != null) 'lowStockOnly': lowStockOnly,
+      if (period != null && period.isNotEmpty) 'period': period,
+      if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
+      if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
+      if (zoneId != null && zoneId.isNotEmpty) 'zoneId': zoneId,
       'page': page,
       'size': size,
-      'sort': 'id,asc',
+      'sort': 'id,desc',
     });
     if (data is Map<String, dynamic> && data['content'] is List) {
       return data['content'] as List<dynamic>;
@@ -1302,9 +1331,13 @@ class ApiService {
     dynamic supplierId,
     bool? active,
     bool? lowStockOnly,
+    String? period,
+    DateTime? fromDate,
+    DateTime? toDate,
+    String? zoneId,
     int page = 0,
     int size = 20,
-    String sort = 'id,asc',
+    String sort = 'id,desc',
   }) async {
     final parsedCatId = _parseNumericId(categoryId);
     final parsedSupId = _parseNumericId(supplierId);
@@ -1315,6 +1348,10 @@ class ApiService {
       if (parsedSupId != null) 'supplierId': parsedSupId,
       if (active != null) 'active': active,
       if (lowStockOnly != null) 'lowStockOnly': lowStockOnly,
+      if (period != null && period.isNotEmpty) 'period': period,
+      if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
+      if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
+      if (zoneId != null && zoneId.isNotEmpty) 'zoneId': zoneId,
       'page': page,
       'size': size,
       'sort': sort,
@@ -1325,18 +1362,31 @@ class ApiService {
     return PagedResult.empty(page: page, size: size);
   }
 
-
   /// Get inventory summary report by period: GET /reports/inventory/summary
   Future<Map<String, dynamic>?> getInventorySummaryReport({
+    String? keyword,
+    dynamic categoryId,
+    dynamic supplierId,
+    bool? active,
+    bool? lowStockOnly,
     String? period,
     DateTime? fromDate,
     DateTime? toDate,
+    String? zoneId,
   }) async {
     try {
+      final parsedCatId = _parseNumericId(categoryId);
+      final parsedSupId = _parseNumericId(supplierId);
       final data = await get('/reports/inventory/summary', queryParams: {
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        if (parsedCatId != null) 'categoryId': parsedCatId,
+        if (parsedSupId != null) 'supplierId': parsedSupId,
+        if (active != null) 'active': active.toString(),
+        if (lowStockOnly != null) 'lowStockOnly': lowStockOnly.toString(),
         if (period != null && period.isNotEmpty) 'period': period,
         if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
         if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),
+        if (zoneId != null && zoneId.isNotEmpty) 'zoneId': zoneId,
       });
       if (data is Map<String, dynamic>) {
         return data;
@@ -1349,6 +1399,7 @@ class ApiService {
   Future<List<dynamic>> getStockTransactionReport({
     dynamic productId,
     dynamic type,
+    dynamic reason,
     dynamic userId,
     DateTime? fromDate,
     DateTime? toDate,
@@ -1358,10 +1409,12 @@ class ApiService {
     final parsedProdId = _parseNumericId(productId);
     final parsedUserId = _parseNumericId(userId);
     final normType = _normalizeTransactionType(type);
+    final reasonStr = reason?.toString().trim().toUpperCase();
 
     final data = await get('/reports/stock-transactions', queryParams: {
       if (parsedProdId != null) 'productId': parsedProdId,
       if (normType != null && normType.isNotEmpty) 'type': normType,
+      if (reasonStr != null && reasonStr.isNotEmpty) 'reason': reasonStr,
       if (parsedUserId != null) 'userId': parsedUserId,
       if (fromDate != null) 'fromDate': fromDate.toUtc().toIso8601String(),
       if (toDate != null) 'toDate': toDate.toUtc().toIso8601String(),

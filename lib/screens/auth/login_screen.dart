@@ -22,10 +22,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl =
-      TextEditingController(text: AppConstants.defaultAdminUsername);
-  final _passCtrl =
-      TextEditingController(text: AppConstants.defaultAdminPassword);
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   bool _obscurePassword = true;
 
   @override
@@ -376,19 +374,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                     ],
 
-                    // Email / Username Field
+                    // Username Field
                     TextFormField(
                       controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
+                      keyboardType: TextInputType.text,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
-                        labelText: 'Username or Email',
-                        hintText: 'Enter your email or username',
+                        labelText: 'Username',
+                        hintText: 'Enter your username',
                         prefixIcon: Icon(Icons.person_outline, size: 20),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
-                          return 'Username or email is required';
+                          return 'Username is required';
                         }
                         return null;
                       },

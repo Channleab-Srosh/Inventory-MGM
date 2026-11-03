@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart' hide Category;
+import 'package:flutter/foundation.dart' hide Category;
 import '../models/category.dart';
 import '../models/user_profile.dart';
 import '../data/api_service.dart';
@@ -153,7 +153,7 @@ class CategoryProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = (e is ApiException) ? e.message : e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
     }

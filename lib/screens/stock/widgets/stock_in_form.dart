@@ -43,6 +43,12 @@ class _StockInFormState extends State<StockInForm> {
     if (widget.initialProductId != null) {
       _applyInitialProduct(widget.initialProductId!);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sup = context.read<SupplierProvider>();
+      if (sup.allSuppliers.isEmpty) {
+        sup.fetchSuppliers();
+      }
+    });
   }
 
   @override
@@ -93,8 +99,14 @@ class _StockInFormState extends State<StockInForm> {
     setState(() => _submitting = true);
 
     try {
+      final costText = _costCtrl.text.trim();
+      final double? parsedCost =
+          costText.isNotEmpty ? double.tryParse(costText) : null;
+
       final noteParts = [
         if (_refCtrl.text.trim().isNotEmpty) 'Ref: ${_refCtrl.text.trim()}',
+        if (parsedCost != null && parsedCost > 0)
+          'Unit Cost: \$${parsedCost.toStringAsFixed(2)}',
         if (_noteCtrl.text.trim().isNotEmpty) _noteCtrl.text.trim(),
       ];
       final note = noteParts.isNotEmpty ? noteParts.join(' - ') : null;
@@ -102,6 +114,8 @@ class _StockInFormState extends State<StockInForm> {
       await stock.recordStockIn(
         productId: _selectedProduct!.id,
         quantity: _quantity,
+        supplierId: _selectedSupplierId,
+        unitCost: parsedCost,
         note: note,
         transactionDate: _date,
       );
@@ -142,7 +156,11 @@ class _StockInFormState extends State<StockInForm> {
 
   @override
   Widget build(BuildContext context) {
-    final suppliers = context.watch<SupplierProvider>().allSuppliers;
+    final suppliers = context
+        .watch<SupplierProvider>()
+        .allSuppliers
+        .where((s) => s.isActive || s.id == _selectedSupplierId)
+        .toList();
     final stock = context.watch<StockProvider>();
 
     return ListView(
@@ -156,7 +174,12 @@ class _StockInFormState extends State<StockInForm> {
               // Product selector
               ProductSelectorField(
                 selectedProduct: _selectedProduct,
-                onSelect: (p) => setState(() => _selectedProduct = p),
+                onSelect: (p) => setState(() {
+                  _selectedProduct = p;
+                  if (p.supplierId.isNotEmpty) {
+                    _selectedSupplierId = p.supplierId;
+                  }
+                }),
               ),
               const SizedBox(height: 12),
 
@@ -258,19 +281,27 @@ class _StockInFormState extends State<StockInForm> {
 
               // Supplier
               DropdownButtonFormField<String>(
+                key: ValueKey('supplier_dropdown_$_selectedSupplierId'),
                 isExpanded: true,
                 initialValue: suppliers.any((s) => s.id == _selectedSupplierId)
                     ? _selectedSupplierId
                     : null,
-                decoration:
-                    const InputDecoration(labelText: 'Supplier (optional)'),
+                decoration: const InputDecoration(
+                  labelText: 'Supplier *',
+                  prefixIcon: Icon(Icons.storefront_outlined, size: 20),
+                ),
+                hint: const Text('Select a supplier'),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('None')),
                   ...suppliers.map((s) => DropdownMenuItem(
                         value: s.id,
-                        child: Text(s.name, overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          s.isActive ? s.name : '${s.name} (Inactive)',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       )),
                 ],
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Supplier is required' : null,
                 onChanged: (v) => setState(() => _selectedSupplierId = v),
               ),
               const SizedBox(height: 12),

@@ -146,6 +146,80 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
     final netUnits = stockInUnits - stockOutUnits;
 
+    final distinctProductIds = filtered
+        .map((m) => m.productId.isNotEmpty ? m.productId : m.productName)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final totalItems = distinctProductIds.length;
+
+    String? activeProductName;
+    if (stock.productFilter != null) {
+      final products = context.read<ProductProvider>().allProducts;
+      final matchedProduct = products
+          .where((p) => p.id.toString() == stock.productFilter)
+          .firstOrNull;
+      activeProductName = matchedProduct?.name ??
+          filtered.firstOrNull?.productName ??
+          'Product #${stock.productFilter}';
+    }
+
+    String? activeUserName;
+    if (stock.userFilter != null) {
+      final authUsers = context.read<AuthProvider>().users;
+      final matchedUser = authUsers
+          .where((u) => u.id.toString() == stock.userFilter)
+          .firstOrNull;
+      activeUserName = matchedUser?.name ??
+          filtered.firstOrNull?.userName ??
+          'User #${stock.userFilter}';
+    }
+
+    final activeFilterChips = <Map<String, dynamic>>[];
+    if (activeProductName != null) {
+      activeFilterChips.add({
+        'icon': Icons.inventory_2_outlined,
+        'label': 'Item: $activeProductName',
+        'onRemove': () => stock.setProductFilter(null),
+      });
+    }
+    if (stock.typeFilter != null) {
+      activeFilterChips.add({
+        'icon': Icons.swap_vert_rounded,
+        'label': stock.typeFilter == MovementType.stockIn ? 'Stock In' : 'Stock Out',
+        'onRemove': () => stock.setTypeFilter(null),
+      });
+    }
+    if (activeUserName != null) {
+      activeFilterChips.add({
+        'icon': Icons.person_outline,
+        'label': 'User: $activeUserName',
+        'onRemove': () => stock.setUserFilter(null),
+      });
+    }
+    if (stock.startDate != null || stock.endDate != null) {
+      final sStr = stock.startDate != null
+          ? DateFormat('dd/MM/yy').format(stock.startDate!)
+          : 'Start';
+      final eStr = stock.endDate != null
+          ? DateFormat('dd/MM/yy').format(stock.endDate!)
+          : 'End';
+      activeFilterChips.add({
+        'icon': Icons.calendar_today_outlined,
+        'label': '$sStr - $eStr',
+        'onRemove': () => stock.setDateRange(null, null),
+      });
+    }
+    if (hasSearch) {
+      activeFilterChips.add({
+        'icon': Icons.search_rounded,
+        'label': '"${stock.search.trim()}"',
+        'onRemove': () {
+          stock.setSearch('');
+          _searchCtrl.clear();
+        },
+      });
+    }
+
     final grouped = <String, List<StockMovement>>{};
     for (final m in filtered) {
       final key = DateFormat('yyyy-MM-dd').format(m.date);
@@ -318,23 +392,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Filtered Results (${filtered.length} transaction${filtered.length == 1 ? "" : "s"})',
+                                  'Filtered Results ($totalItems item${totalItems == 1 ? "" : "s"} · ${filtered.length} transaction${filtered.length == 1 ? "" : "s"})',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.text,
                                   ),
                                 ),
-                                if (hasSearch)
-                                  Text(
-                                    'Query: "${stock.search.trim()}"',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.secondaryText,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
                               ],
                             ),
                           ),
@@ -368,10 +432,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                         ],
                       ),
+                      if (activeFilterChips.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: activeFilterChips.map((chip) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(AppTheme.pillRadius),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(chip['icon'] as IconData, size: 11, color: AppColors.secondaryText),
+                                  const SizedBox(width: 4),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 160),
+                                    child: Text(
+                                      chip['label'] as String,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.text,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    onTap: chip['onRemove'] as VoidCallback,
+                                    child: const Icon(Icons.close_rounded, size: 12, color: AppColors.secondaryText),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                       const SizedBox(height: 10),
-                      // Stats Row: Total Units, Stock In, Stock Out
+                      // Stats Row 1: Total Items, Total Units
                       Row(
                         children: [
+                          Expanded(
+                            child: _FilterMetricTile(
+                              label: 'Total Items',
+                              value: AppUtils.formatNumber(totalItems),
+                              color: const Color(0xFF1D4ED8),
+                              bgColor: const Color(0xFFEFF6FF),
+                              icon: Icons.category_outlined,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: _FilterMetricTile(
                               label: 'Total Units',
@@ -381,7 +496,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               icon: Icons.inventory_2_outlined,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Stats Row 2: Stock In, Stock Out
+                      Row(
+                        children: [
                           Expanded(
                             child: _FilterMetricTile(
                               label: 'Stock In',
@@ -547,6 +667,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     final movements = grouped[key]!;
                                     final date = DateTime.parse(key);
                                     final dayUnits = movements.fold<int>(0, (sum, m) => sum + m.quantity);
+                                    final dayItems = movements
+                                        .map((m) => m.productId.isNotEmpty ? m.productId : m.productName)
+                                        .where((id) => id.isNotEmpty)
+                                        .toSet()
+                                        .length;
 
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,7 +707,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                               ),
                                               const SizedBox(width: 10),
                                               Text(
-                                                '${movements.length} record${movements.length > 1 ? "s" : ""} · ${AppUtils.formatNumber(dayUnits)} units',
+                                                '$dayItems item${dayItems == 1 ? "" : "s"} · ${movements.length} record${movements.length > 1 ? "s" : ""} · ${AppUtils.formatNumber(dayUnits)} units',
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   color: AppColors.secondaryText,

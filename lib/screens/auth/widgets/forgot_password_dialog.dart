@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/app_utils.dart';
 
 /// Reusable 2-step OTP Password Recovery and Reset Dialog
 /// Flow:
@@ -466,11 +467,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                 onPressed: () => setState(() => _obscureNew = !_obscureNew),
               ),
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Please enter a new password';
-              if (v.length < 6) return 'Password must be at least 6 characters';
-              return null;
-            },
+            validator: AppUtils.validatePassword,
           ),
           const SizedBox(height: 12),
 
@@ -490,11 +487,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                 onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
               ),
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Please confirm your password';
-              if (v != _newPasswordCtrl.text) return 'Passwords do not match';
-              return null;
-            },
+            validator: (v) => AppUtils.validateConfirmPassword(v, _newPasswordCtrl.text),
             onFieldSubmitted: (_) => _handleResetPassword(),
           ),
           const SizedBox(height: 16),

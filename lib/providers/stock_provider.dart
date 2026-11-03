@@ -142,6 +142,7 @@ class StockProvider extends ChangeNotifier {
   Future<List<StockMovement>> fetchTransactionReport({
     String? productId,
     String? type,
+    String? reason,
     String? userId,
     DateTime? fromDate,
     DateTime? toDate,
@@ -150,6 +151,7 @@ class StockProvider extends ChangeNotifier {
       final list = await _api.getStockTransactionReport(
         productId: productId,
         type: type,
+        reason: reason,
         userId: userId,
         fromDate: fromDate,
         toDate: toDate,
@@ -173,6 +175,8 @@ class StockProvider extends ChangeNotifier {
   Future<StockMovement?> recordStockIn({
     required String productId,
     required int quantity,
+    dynamic supplierId,
+    double? unitCost,
     String? note,
     DateTime? transactionDate,
   }) async {
@@ -184,14 +188,39 @@ class StockProvider extends ChangeNotifier {
       final data = await _api.stockIn(
         productId: productId,
         quantity: quantity,
+        supplierId: supplierId,
+        unitCost: unitCost,
         note: note,
         transactionDate: transactionDate,
       );
       final movement = StockMovement.fromJson(data);
-      _movements.insert(0, movement);
+      final effectiveMovement = (movement.unitCost == null && unitCost != null && unitCost > 0)
+          ? StockMovement(
+              id: movement.id,
+              productId: movement.productId,
+              productName: movement.productName,
+              type: movement.type,
+              quantity: movement.quantity,
+              unit: movement.unit,
+              stockBefore: movement.stockBefore,
+              stockAfter: movement.stockAfter,
+              unitCost: unitCost,
+              supplierId: movement.supplierId,
+              supplierName: movement.supplierName,
+              customerId: movement.customerId,
+              customerName: movement.customerName,
+              reason: movement.reason,
+              reference: movement.reference,
+              note: movement.note,
+              userId: movement.userId,
+              userName: movement.userName,
+              date: movement.date,
+            )
+          : movement;
+      _movements.insert(0, effectiveMovement);
       _isLoading = false;
       notifyListeners();
-      return movement;
+      return effectiveMovement;
     } catch (e) {
       _isLoading = false;
       _error = e.toString();
@@ -204,6 +233,8 @@ class StockProvider extends ChangeNotifier {
   Future<StockMovement?> recordStockOut({
     required String productId,
     required int quantity,
+    dynamic customerId,
+    StockOutReason? reason,
     String? note,
     DateTime? transactionDate,
   }) async {
@@ -219,9 +250,15 @@ class StockProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final reasonStr = reason != null
+          ? (reason == StockOutReason.damaged ? 'DAMAGE' : reason.name.toUpperCase())
+          : 'SALE';
+
       final data = await _api.stockOut(
         productId: productId,
         quantity: quantity,
+        customerId: customerId,
+        reason: reasonStr,
         note: note,
         transactionDate: transactionDate,
       );
@@ -232,7 +269,7 @@ class StockProvider extends ChangeNotifier {
       return movement;
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = (e is ApiException) ? e.message : e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       rethrow;
     }
@@ -313,6 +350,8 @@ class StockProvider extends ChangeNotifier {
           .where((m) =>
               m.productName.toLowerCase().contains(q) ||
               (m.reference?.toLowerCase().contains(q) ?? false) ||
+              (m.supplierName?.toLowerCase().contains(q) ?? false) ||
+              (m.customerName?.toLowerCase().contains(q) ?? false) ||
               (m.userName.toLowerCase().contains(q)))
           .toList();
     }
@@ -549,13 +588,7 @@ class StockProvider extends ChangeNotifier {
         return pct.clamp(12, 100);
       }).toList();
     } else {
-      if (labels.length == 7) {
-        barPercentages = [45, 20, 50, 35, 100, 25, 40];
-      } else if (labels.length == 4) {
-        barPercentages = [35, 60, 100, 45];
-      } else {
-        barPercentages = [45, 20, 50, 35, 100];
-      }
+      barPercentages = List.filled(labels.length, 0);
     }
 
     String trendText;
@@ -575,7 +608,7 @@ class StockProvider extends ChangeNotifier {
         isPositive = true;
       }
     } else {
-      trendText = '+18% Rise in Total Inventory Units';
+      trendText = 'No transactions recorded for this period';
       isPositive = true;
     }
 

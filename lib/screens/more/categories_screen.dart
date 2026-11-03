@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
@@ -362,13 +362,24 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       );
 
       if (confirmed && context.mounted) {
-        catProv.deleteCategory(cat.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Category "${cat.name}" deleted.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+        final success = await catProv.deleteCategory(cat.id);
+        if (context.mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Category "${cat.name}" deleted.'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(catProv.error ?? 'Failed to delete category'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+          }
+        }
       }
     }
   }

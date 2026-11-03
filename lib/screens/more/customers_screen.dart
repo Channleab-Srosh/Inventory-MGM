@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/customer_provider.dart';
+import '../../providers/stock_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../../models/customer.dart';
@@ -25,6 +26,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final prov = context.read<CustomerProvider>();
       if (prov.allCustomers.isEmpty) prov.fetchCustomers();
+      final stockProv = context.read<StockProvider>();
+      if (stockProv.allMovements.isEmpty) stockProv.fetchMovements();
     });
   }
 
@@ -40,6 +43,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final canManageCustomers = auth.user?.canManageCustomers ?? false;
     final canDeleteCustomers = auth.user?.canDeleteCustomers ?? false;
     final prov = context.watch<CustomerProvider>();
+    final stockProv = context.watch<StockProvider>();
     final allCustomers = prov.customers;
 
     final customers = allCustomers.where((c) {
@@ -146,6 +150,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                     separatorBuilder: (_, __) => const SizedBox(height: 6),
                                     itemBuilder: (_, i) {
                                       final c = customers[i];
+                                      final txCount = stockProv.allMovements
+                                          .where((m) => m.customerId == c.id)
+                                          .length;
                                       final initials = c.name.trim().isNotEmpty
                                           ? (c.name.trim().split(' ').length > 1
                                               ? '${c.name.trim().split(' ')[0][0]}${c.name.trim().split(' ')[1][0]}'.toUpperCase()
@@ -263,6 +270,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                                             ],
                                                           ),
                                                         ],
+                                                        const SizedBox(height: 4),
+                                                        Row(
+                                                          children: [
+                                                            const Icon(Icons.receipt_long_outlined,
+                                                                size: 13, color: AppColors.grey500),
+                                                            const SizedBox(width: 4),
+                                                            Text(
+                                                              '$txCount transaction${txCount == 1 ? "" : "s"} linked',
+                                                              style: const TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: AppColors.secondaryText),
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ],
                                                     ),
                                                   ),
@@ -313,23 +334,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                                               size: 16, color: AppColors.danger),
                                                           label: const Text('Delete',
                                                               style: TextStyle(color: AppColors.danger)),
-                                                          onPressed: () async {
-                                                            final confirmed = await ConfirmDialog.show(
-                                                              context,
-                                                              title: 'Delete Customer',
-                                                              message: 'Are you sure you want to delete customer "${c.name}"?',
-                                                              confirmLabel: 'Delete',
-                                                              confirmColor: AppColors.danger,
-                                                            );
-                                                            if (confirmed && context.mounted) {
-                                                              final ok = await prov.deleteCustomer(c.id);
-                                                              if (ok && context.mounted) {
-                                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                                  SnackBar(content: Text('${c.name} deleted')),
-                                                                );
-                                                              }
-                                                            }
-                                                          },
+                                                          onPressed: () =>
+                                                              _handleDeleteCustomer(context, c, txCount),
                                                         ),
                                                     ],
                                                   ),
@@ -357,6 +363,135 @@ class _CustomersScreenState extends State<CustomersScreen> {
             )
           : null,
     );
+  }
+
+  /// Business Rule Implementation (matching Category and Supplier):
+  /// If a customer has transactions linked, deletion is blocked
+  /// and the user is guided to soft deactivation instead.
+  Future<void> _handleDeleteCustomer(
+      BuildContext context, Customer c, int txCount) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.user?.canDeleteCustomers != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Staff accounts cannot delete customers.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+    final prov = context.read<CustomerProvider>();
+
+    if (txCount > 0) {
+      // Customer has transactions -> Block deletion & recommend soft deactivation
+      final result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Customer In Use'),
+          content: Text(
+            'Customer "${c.name}" has $txCount transaction(s) linked to them.\n\n'
+            'To maintain sales and transaction history integrity, soft deactivation is recommended instead of permanent deletion.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.pause_circle_outline, size: 18),
+              label: const Text('Soft Deactivate'),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+              onPressed: () => Navigator.pop(ctx, 'deactivate'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'deactivate' && context.mounted) {
+        final ok = await prov.deactivateCustomer(c.id);
+        if (context.mounted && ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('"${c.name}" has been soft-deactivated.'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+    } else {
+      // No local transactions found -> Confirm before calling delete API
+      final confirmed = await ConfirmDialog.show(
+        context,
+        title: 'Delete Customer',
+        message:
+            'Are you sure you want to delete customer "${c.name}"? This customer has no transaction records.',
+        confirmLabel: 'Delete',
+        confirmColor: AppColors.danger,
+      );
+
+      if (confirmed && context.mounted) {
+        final ok = await prov.deleteCustomer(c.id);
+        if (context.mounted) {
+          if (ok) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Customer "${c.name}" deleted.')),
+            );
+          } else {
+            // Check if backend rejected deletion due to stock transactions (409 Conflict)
+            final errorMsg = prov.error ?? 'Failed to delete customer';
+            final isConflict = errorMsg.toLowerCase().contains('transaction') ||
+                errorMsg.toLowerCase().contains('referenced') ||
+                errorMsg.toLowerCase().contains('conflict');
+
+            if (isConflict) {
+              final action = await showDialog<String>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Customer In Use'),
+                  content: Text(
+                    'Cannot delete "${c.name}" because this customer is referenced by transaction records in the system.\n\n'
+                    'To maintain transaction and sales integrity, soft deactivation is recommended instead of permanent deletion.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, 'cancel'),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.pause_circle_outline, size: 18),
+                      label: const Text('Soft Deactivate'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.warning),
+                      onPressed: () => Navigator.pop(ctx, 'deactivate'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (action == 'deactivate' && context.mounted) {
+                final deactivated = await prov.deactivateCustomer(c.id);
+                if (context.mounted && deactivated) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('"${c.name}" has been soft-deactivated.'),
+                      backgroundColor: AppColors.warning,
+                    ),
+                  );
+                }
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(errorMsg),
+                  backgroundColor: AppColors.danger,
+                ),
+              );
+            }
+          }
+        }
+      }
+    }
   }
 
   void _openForm(BuildContext context, Customer? customer) {

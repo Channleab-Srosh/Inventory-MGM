@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
@@ -260,8 +261,16 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       );
     }
 
-    final categories = context.watch<CategoryProvider>().categories;
-    final suppliers = context.watch<SupplierProvider>().allSuppliers;
+    final categories = context
+        .watch<CategoryProvider>()
+        .allCategories
+        .where((c) => c.isActive || c.id == _selectedCategoryId)
+        .toList();
+    final suppliers = context
+        .watch<SupplierProvider>()
+        .allSuppliers
+        .where((s) => s.isActive || s.id == _selectedSupplierId)
+        .toList();
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -430,7 +439,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                       .map((c) => DropdownMenuItem(
                             value: c.id,
                             child: Text(
-                              c.name,
+                              c.isActive ? c.name : '${c.name} (Inactive)',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ))
@@ -452,7 +461,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                       .map((s) => DropdownMenuItem(
                             value: s.id,
                             child: Text(
-                              s.name,
+                              s.isActive ? s.name : '${s.name} (Inactive)',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ))
@@ -486,14 +495,18 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   controller: _priceCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Price *',
                     prefixText: '\$ ',
+                    helperText: 'Positive price (e.g. 19.99)',
                   ),
                   validator: (v) {
-                    if (v == null || v.isEmpty) return 'Price is required';
-                    final n = double.tryParse(v);
-                    if (n == null || n < 0) return 'Enter a valid price';
+                    if (v == null || v.trim().isEmpty) return 'Price is required';
+                    final n = double.tryParse(v.trim());
+                    if (n == null || n < 0) return 'Enter a valid positive price';
                     return null;
                   },
                 ),
@@ -529,30 +542,51 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                     final isNarrow = constraints.maxWidth < 280;
                     final qtyField = TextFormField(
                       controller: _qtyCtrl,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        signed: false,
+                        decimal: false,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
                       decoration: InputDecoration(
-                        labelText: 'Initial Qty *',
+                        labelText:
+                            _isEditing ? 'Current Stock *' : 'Initial Qty *',
+                        hintText: '0',
+                        helperText: 'Numbers only (non-negative)',
                         suffixText: _unit,
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Required';
-                        final n = int.tryParse(v);
-                        if (n == null) return 'Invalid number';
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Initial quantity is required';
+                        }
+                        final n = int.tryParse(v.trim());
+                        if (n == null) return 'Numbers only';
                         if (n < 0) return 'Stock quantity cannot be negative';
                         return null;
                       },
                     );
                     final minStockField = TextFormField(
                       controller: _minStockCtrl,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        signed: false,
+                        decimal: false,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
                       decoration: InputDecoration(
                         labelText: 'Min Stock *',
+                        hintText: '10',
+                        helperText: 'Numbers only (non-negative)',
                         suffixText: _unit,
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Required';
-                        final n = int.tryParse(v);
-                        if (n == null) return 'Invalid number';
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Min stock is required';
+                        }
+                        final n = int.tryParse(v.trim());
+                        if (n == null) return 'Numbers only';
                         if (n < 0) return 'Min stock cannot be negative';
                         return null;
                       },

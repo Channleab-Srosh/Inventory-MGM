@@ -6,6 +6,7 @@ import '../../../models/stock_movement.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../core/widgets/common_widgets.dart';
+import '../../history/widgets/movement_detail_card.dart';
 
 /// Reusable product selector input with modal bottom sheet
 class ProductSelectorField extends StatelessWidget {
@@ -234,44 +235,93 @@ class StockRecentTile extends StatelessWidget {
     final color = isIn ? AppColors.chartIn : AppColors.chartOut;
     final theme = Theme.of(context);
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () => MovementDetailCard.showMovementDetailSheet(context, movement),
+      borderRadius: BorderRadius.circular(8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            isIn ? Icons.arrow_downward : Icons.arrow_upward,
+            color: color,
+            size: 16,
+          ),
         ),
-        child: Icon(
-          isIn ? Icons.arrow_downward : Icons.arrow_upward,
-          color: color,
-          size: 16,
+        title: Text(
+          movement.productName,
+          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-      ),
-      title: Text(
-        movement.productName,
-        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        movement.stockBefore != null && movement.stockAfter != null
-            ? '${AppUtils.formatDateTime(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
-            : AppUtils.formatDateTime(movement.date),
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontSize: 11,
-          color: AppColors.secondaryText,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              movement.stockBefore != null && movement.stockAfter != null
+                  ? '${AppUtils.formatDateTime(movement.date)} · Stock: ${movement.stockBefore} → ${movement.stockAfter} ${movement.unit ?? "pcs"}'
+                  : AppUtils.formatDateTime(movement.date),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 11,
+                color: AppColors.secondaryText,
+              ),
+            ),
+            if (isIn && movement.unitCost != null && movement.unitCost! > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Unit Cost: ${AppUtils.formatCurrency(movement.unitCost!)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.chartIn,
+                  ),
+                ),
+              ),
+            if (isIn && movement.supplierName != null && movement.supplierName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Supplier: ${movement.supplierName}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
+            else if (!isIn && movement.customerName != null && movement.customerName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Customer: ${movement.customerName}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.chartOut,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
         ),
-      ),
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 80),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerRight,
-          child: Text(
-            '${isIn ? '+' : '-'}${movement.quantity} ${movement.unit ?? "pcs"}',
-            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+        trailing: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 80),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${isIn ? '+' : '-'}${movement.quantity} ${movement.unit ?? "pcs"}',
+              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            ),
           ),
         ),
       ),

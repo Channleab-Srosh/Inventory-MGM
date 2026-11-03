@@ -31,8 +31,6 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _phoneCtrl;
-  late final TextEditingController _passwordCtrl;
-  bool _obscurePassword = true;
   String _role = 'STAFF';
   String _status = 'Active';
   bool _isSubmitting = false;
@@ -48,9 +46,6 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
     _nameCtrl = TextEditingController(text: u?.name ?? '');
     _emailCtrl = TextEditingController(text: u?.email ?? '');
     _phoneCtrl = TextEditingController(text: u?.phone ?? '');
-    _passwordCtrl = TextEditingController(
-      text: u == null ? AppUtils.generateRandomPassword() : '',
-    );
     if (u != null) {
       _role = u.role.toUpperCase();
       _status = u.status;
@@ -63,7 +58,6 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -126,8 +120,7 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
         status: _status,
         createdAt: DateTime.now(),
       );
-      final customPassword = _passwordCtrl.text.trim();
-      final password = customPassword.isEmpty ? AppUtils.generateRandomPassword() : customPassword;
+      final password = AppUtils.generateRandomPassword();
       final ok = await auth.addUser(newUser, password: password);
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -135,7 +128,7 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('New user created! Random password sent to ${newUser.email}. First login requires password change.'),
+              content: Text('New user created! Temporary credentials sent to ${newUser.email}'),
               backgroundColor: AppColors.inStock,
             ),
           );
@@ -298,82 +291,6 @@ class _AddEditUserSheetState extends State<AddEditUserSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-
-              // Temporary Generated Password (only when creating)
-              if (!_isEditing) ...[
-                TextFormField(
-                  controller: _passwordCtrl,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Generated Temporary Password',
-                    hintText: 'Auto-generated secure password',
-                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: 'Generate new random password',
-                          icon: const Icon(Icons.refresh, size: 20),
-                          onPressed: () {
-                            setState(() {
-                              _passwordCtrl.text = AppUtils.generateRandomPassword();
-                            });
-                          },
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
-                          ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
-                        ),
-                      ],
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Password is required';
-                    }
-                    if (v.trim().length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryActive,
-                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                    border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3)),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.mark_email_read_outlined,
-                          size: 18, color: AppColors.primaryDark),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'A secure random password has been generated and will be sent automatically to the user\'s email address. The user will be required to change this password on their first login.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.primaryDark,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
 
               // Role selector
               DropdownButtonFormField<String>(

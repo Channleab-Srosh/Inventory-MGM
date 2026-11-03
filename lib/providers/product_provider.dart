@@ -29,7 +29,7 @@ class ProductProvider extends ChangeNotifier {
 
   // Pagination state
   int _currentPage = 0;
-  static const int _pageSize = 20;
+  static const int _pageSize = 50;
   bool _hasMore = true;
   bool _isLoadingMore = false;
   int _totalElements = 0;
@@ -114,7 +114,9 @@ class ProductProvider extends ChangeNotifier {
   int get totalQuantity =>
       _serverSummary != null && _serverSummary!['totalStockQuantity'] != null
           ? (_serverSummary!['totalStockQuantity'] as num).toInt()
-          : _products.fold(0, (s, p) => s + p.quantity);
+          : _products
+              .where((p) => p.status.toLowerCase() == 'active' && p.quantity > 0)
+              .fold(0, (s, p) => s + p.quantity);
 
   int get lowStockCount => _serverSummary != null &&
           _serverSummary!['lowStockCount'] != null
@@ -195,6 +197,7 @@ class ProductProvider extends ChangeNotifier {
         supplierId: _selectedSupplierId,
         page: 0,
         size: _pageSize,
+        sort: 'id,desc',
       );
 
       _products = paged.items.map(Product.fromJson).toList();
@@ -232,10 +235,12 @@ class ProductProvider extends ChangeNotifier {
         supplierId: _selectedSupplierId,
         page: nextPage,
         size: _pageSize,
+        sort: 'id,desc',
       );
 
       final newItems = paged.items.map(Product.fromJson).toList();
-      _products.addAll(newItems);
+      final existingIds = _products.map((p) => p.id).toSet();
+      _products.addAll(newItems.where((p) => !existingIds.contains(p.id)));
       _currentPage = paged.page;
       _hasMore = !paged.last;
       _totalElements = paged.totalElements;
@@ -312,6 +317,9 @@ class ProductProvider extends ChangeNotifier {
     dynamic supplierId,
     bool? active,
     bool? lowStockOnly,
+    String? period,
+    DateTime? fromDate,
+    DateTime? toDate,
   }) async {
     try {
       final list = await _api.getInventoryReport(
@@ -320,6 +328,9 @@ class ProductProvider extends ChangeNotifier {
         supplierId: supplierId,
         active: active,
         lowStockOnly: lowStockOnly,
+        period: period,
+        fromDate: fromDate,
+        toDate: toDate,
         size: 100,
       );
       return list
@@ -395,13 +406,16 @@ class ProductProvider extends ChangeNotifier {
           await _api.stockIn(
             productId: created.id,
             quantity: product.quantity,
+            supplierId: product.supplierId,
             note: 'Initial stock on creation',
           );
           created.quantity = product.quantity;
         } catch (_) {}
       }
 
+      _products.removeWhere((p) => p.id == created.id);
       _products.insert(0, created);
+      _totalElements++;
       _isLoading = false;
       notifyListeners();
       return created;

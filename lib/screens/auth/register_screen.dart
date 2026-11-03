@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_components.dart';
+import '../../core/utils/app_utils.dart';
 
 /// Feature 6: Register Screen (Staff only registration)
 class RegisterScreen extends StatefulWidget {
@@ -29,7 +30,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _otpSent = false;
 
   @override
+  void initState() {
+    super.initState();
+    _passwordCtrl.addListener(_onPasswordChanged);
+  }
+
+  void _onPasswordChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _passwordCtrl.removeListener(_onPasswordChanged);
     _usernameCtrl.dispose();
     _emailCtrl.dispose();
     _firstNameCtrl.dispose();
@@ -42,7 +54,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _sendCode() async {
-    if (!_formKey.currentState!.validate()) return;
+    final emailError = AppUtils.validateEmail(_emailCtrl.text.trim());
+    if (emailError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(emailError),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     final auth = context.read<AuthProvider>();
     final ok = await auth.sendRegistrationOtp(_emailCtrl.text.trim());
@@ -61,11 +82,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _resendCode() async {
     final email = _emailCtrl.text.trim();
-    final gmailRegex = RegExp(r'^[a-zA-Z0-9._%+\-]+@gmail\.com$');
-    if (!gmailRegex.hasMatch(email)) {
+    final emailError = AppUtils.validateEmail(email);
+    if (emailError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid Gmail address (@gmail.com)'),
+        SnackBar(
+          content: Text(emailError),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -220,16 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: 'Username',
                         prefixIcon: Icon(Icons.alternate_email, size: 20),
                       ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Username is required';
-                        }
-                        final len = v.trim().length;
-                        if (len < 3 || len > 50) {
-                          return 'Username must be between 3 and 50 characters';
-                        }
-                        return null;
-                      },
+                      validator: AppUtils.validateUsername,
                     ),
                     const SizedBox(height: 14),
 
@@ -241,16 +253,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: 'Email Address (@gmail.com)',
                         prefixIcon: Icon(Icons.email_outlined, size: 20),
                       ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Email is required';
-                        }
-                        final gmailRegex = RegExp(r'^[a-zA-Z0-9._%+\-]+@gmail\.com$');
-                        if (!gmailRegex.hasMatch(v.trim())) {
-                          return 'Only Gmail addresses (@gmail.com) are allowed';
-                        }
-                        return null;
-                      },
+                      validator: AppUtils.validateEmail,
                     ),
                     const SizedBox(height: 14),
 
@@ -264,8 +267,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               labelText: 'First Name',
                               prefixIcon: Icon(Icons.person_outline, size: 20),
                             ),
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty) ? 'Required' : null,
+                            validator: (v) => AppUtils.validateNamePart(v, 'First name'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -275,8 +277,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Last Name',
                             ),
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty) ? 'Required' : null,
+                            validator: (v) => AppUtils.validateNamePart(v, 'Last name'),
                           ),
                         ),
                       ],
@@ -291,12 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: 'Phone (Optional)',
                         prefixIcon: Icon(Icons.phone_outlined, size: 20),
                       ),
-                      validator: (v) {
-                        if (v != null && v.trim().length > 20) {
-                          return 'Phone cannot exceed 20 characters';
-                        }
-                        return null;
-                      },
+                      validator: AppUtils.validatePhone,
                     ),
                     const SizedBox(height: 14),
 
@@ -318,12 +314,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               () => _obscurePassword = !_obscurePassword),
                         ),
                       ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 6) return 'Minimum 6 characters';
-                        return null;
-                      },
+                      validator: AppUtils.validatePassword,
                     ),
+                    const SizedBox(height: 8),
+
+                    // Real-time password requirement checklist
+                    _PasswordRulesBox(password: _passwordCtrl.text),
                     const SizedBox(height: 14),
 
                     // Confirm Password
@@ -344,15 +340,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               () => _obscureConfirm = !_obscureConfirm),
                         ),
                       ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Please confirm password';
-                        }
-                        if (v != _passwordCtrl.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
+                      validator: (v) => AppUtils.validateConfirmPassword(v, _passwordCtrl.text),
                     ),
                     const SizedBox(height: 14),
 
@@ -374,15 +362,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           counterText: '',
                           prefixIcon: Icon(Icons.pin_outlined, size: 20),
                         ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'OTP code is required';
-                          }
-                          if (!RegExp(r'^\d{6}$').hasMatch(v.trim())) {
-                            return 'OTP must be exactly 6 digits';
-                          }
-                          return null;
-                        },
+                        validator: AppUtils.validateOtp,
                       ),
                       const SizedBox(height: 6),
                       Align(
@@ -434,6 +414,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PasswordRulesBox extends StatelessWidget {
+  final String password;
+  const _PasswordRulesBox({required this.password});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasMinLength = password.length >= 8;
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(password);
+    final hasLower = RegExp(r'[a-z]').hasMatch(password);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(password);
+    final hasSpecial = RegExp(r'[!@#\$%^&*(),.?":{}|<>\-_+=~`]').hasMatch(password);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Password requirements:',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _RuleRow(label: 'At least 8 characters', met: hasMinLength),
+          _RuleRow(label: 'At least 1 uppercase letter (A-Z)', met: hasUpper),
+          _RuleRow(label: 'At least 1 lowercase letter (a-z)', met: hasLower),
+          _RuleRow(label: 'At least 1 number (0-9)', met: hasDigit),
+          _RuleRow(label: 'At least 1 special character (!@#\$%&*)', met: hasSpecial),
+        ],
+      ),
+    );
+  }
+}
+
+class _RuleRow extends StatelessWidget {
+  final String label;
+  final bool met;
+  const _RuleRow({required this.label, required this.met});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.circle_outlined,
+            size: 14,
+            color: met ? AppColors.inStock : AppColors.muted,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: met ? AppColors.inStock : AppColors.secondaryText,
+              fontWeight: met ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }

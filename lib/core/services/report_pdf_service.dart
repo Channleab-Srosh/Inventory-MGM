@@ -3,12 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import 'package:inventory_management/core/services/report_data_service.dart';
+import 'package:inventory_management/core/utils/report_export_service.dart';
 import 'package:inventory_management/models/inventory_report.dart';
 import 'package:inventory_management/models/stock_movement.dart';
 
@@ -38,6 +38,7 @@ class ReportPdfService {
     required String title,
     required String periodLabel,
     required DateTimeRange range,
+    bool isAllTime = false,
     String currencySymbol = '\$',
   }) async {
     // Default PDF fonts only contain Latin symbols; fall back to no symbol
@@ -53,7 +54,8 @@ class ReportPdfService {
     late final List<pw.Widget> content;
     switch (reportIndex) {
       case 0:
-        content = await _stockSummary(symbol, range);
+        content = await _stockSummary(symbol, range,
+            isAllTime: isAllTime, periodLabel: periodLabel);
         break;
       case 1:
         content = await _movements(range, type: 'STOCK_IN', label: 'Incoming Transactions');
@@ -62,13 +64,15 @@ class ReportPdfService {
         content = await _movements(range, type: 'STOCK_OUT', label: 'Outgoing Transactions');
         break;
       case 3:
-        content = await _lowStock(symbol, range);
+        content = await _lowStock(symbol, range,
+            isAllTime: isAllTime, periodLabel: periodLabel);
         break;
       case 4:
         content = await _movements(range, type: null, label: 'All Transactions');
         break;
       default:
-        content = await _stockSummary(symbol, range);
+        content = await _stockSummary(symbol, range,
+            isAllTime: isAllTime, periodLabel: periodLabel);
     }
 
     final generatedAt = DateFormat('MMM d, yyyy h:mm a').format(DateTime.now());
@@ -111,14 +115,8 @@ class ReportPdfService {
     final date = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
     final filename = '${slug}_$date.pdf';
 
-    // 1) Save a copy in the app's storage folder
-    Directory dir;
-    try {
-      dir = (await getExternalStorageDirectory()) ??
-          await getApplicationDocumentsDirectory();
-    } catch (_) {
-      dir = await getApplicationDocumentsDirectory();
-    }
+    // 1) Save directly to the device's public Download folder (MuMu Phone / Android)
+    final dir = await ReportExportService.getPublicDownloadDirectory();
     final file = File('${dir.path}${Platform.pathSeparator}$filename');
     await file.writeAsBytes(bytes, flush: true);
 
@@ -135,31 +133,65 @@ class ReportPdfService {
   // ------------------------------------------------------------------
 
   static Future<List<pw.Widget>> _stockSummary(
-      String symbol, DateTimeRange range) async {
-    // Date filter: products whose stock/details were updated inside the period
-    final items = ReportDataService.updatedInRange(
-        await ReportDataService.fetchInventory(), range);
+      String symbol, DateTimeRange range,
+      {bool isAllTime = false, String? periodLabel}) async {
+    String? periodCode;
+    DateTime? fromDate;
+    DateTime? toDate;
 
-    final totalUnits = items.fold<int>(0, (s, i) => s + i.stockQuantity);
-    final totalValue = items.fold<double>(0, (s, i) => s + i.totalValue);
-    final outCount = items.where((i) => i.stockQuantity <= 0).length;
-    final lowCount =
-        items.where((i) => i.stockQuantity > 0 && i.lowStock).length;
-    final inCount = items.length - outCount - lowCount;
+    if (!isAllTime) {
+      final labelLower = (periodLabel ?? '').toLowerCase();
+      if (labelLower.startsWith('today')) {
+        periodCode = 'TODAY';
+      } else if (labelLower.startsWith('this week')) {
+        periodCode = 'THIS_WEEK';
+      } else if (labelLower.startsWith('this month')) {
+        periodCode = 'THIS_MONTH';
+      } else {
+        periodCode = 'CUSTOM';
+        fromDate = range.start;
+        toDate = range.end;
+      }
+    }
+
+    final all = await ReportDataService.fetchInventory(
+      period: periodCode,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+    final movements = isAllTime
+        ? <StockMovement>[]
+        : await ReportDataService.fetchMovements(range);
+
+    final data = await ReportDataService.fetchInventorySummary(
+      period: periodCode,
+      fromDate: fromDate,
+      toDate: toDate,
+      isAllTime: isAllTime,
+      periodMovements: movements,
+      fallbackItems: all,
+    );
 
     return [
       _chips([
-        ('Total Items', '${items.length}'),
-        ('Total Units', '$totalUnits'),
-        ('Inventory Value', _money(totalValue, symbol)),
-        ('In Stock', '$inCount'),
-        ('Low Stock', '$lowCount'),
-        ('Out of Stock', '$outCount'),
+        ('Total Items', '${data.totalItems}'),
+        ('Total Units', '${data.totalUnits}'),
+        ('Inventory Value', _money(data.valuation, symbol)),
+        ('In Stock', '${data.inStockCount}'),
+        ('Low Stock', '${data.lowStockCount}'),
+        ('Out of Stock', '${data.outOfStockCount}'),
+        if (!isAllTime && (data.unitsIn > 0 || data.unitsOut > 0)) ...[
+          ('Stock In Units', '+${data.unitsIn}'),
+          ('Stock Out Units', '-${data.unitsOut}'),
+          ('Net Units Change', '${data.netUnits >= 0 ? "+" : ""}${data.netUnits}'),
+        ],
       ]),
       pw.SizedBox(height: 6),
-      _note('Includes products updated during the selected period.'),
+      _note(isAllTime
+          ? 'Complete inventory valuation and status as of ${DateFormat('MMM d, yyyy').format(DateTime.now())}.'
+          : 'Stock distribution, valuation and movement summary for ${periodLabel ?? "this period"}.'),
       pw.SizedBox(height: 12),
-      _sectionTitle('Products (${items.length})'),
+      _sectionTitle('Products (${data.products.length})'),
       pw.SizedBox(height: 6),
       _table(
         headers: const [
@@ -173,16 +205,16 @@ class ReportPdfService {
           'Status',
         ],
         rows: [
-          for (final i in items)
+          for (final p in data.products)
             [
-              i.sku,
-              i.name,
-              i.categoryName ?? '-',
-              '${i.stockQuantity} ${i.unitOfMeasure.toLowerCase()}',
-              '${i.minimumStock}',
-              _money(i.unitPrice, symbol),
-              _money(i.totalValue, symbol),
-              _statusOf(i),
+              p.sku,
+              p.name,
+              p.categoryName,
+              '${p.currentStock}',
+              '${p.minStock}',
+              _money(p.unitPrice, symbol),
+              _money(p.movementValue, symbol),
+              p.status,
             ],
         ],
         widths: const {
@@ -201,10 +233,34 @@ class ReportPdfService {
   }
 
   static Future<List<pw.Widget>> _lowStock(
-      String symbol, DateTimeRange range) async {
-    // Date filter: low-stock products updated inside the period
-    final items = ReportDataService.updatedInRange(
-        await ReportDataService.fetchInventory(lowStockOnly: true), range);
+      String symbol, DateTimeRange range,
+      {bool isAllTime = false, String? periodLabel}) async {
+    String? periodCode;
+    DateTime? fromDate;
+    DateTime? toDate;
+
+    if (!isAllTime) {
+      final labelLower = (periodLabel ?? '').toLowerCase();
+      if (labelLower.startsWith('today')) {
+        periodCode = 'TODAY';
+      } else if (labelLower.startsWith('this week')) {
+        periodCode = 'THIS_WEEK';
+      } else if (labelLower.startsWith('this month')) {
+        periodCode = 'THIS_MONTH';
+      } else {
+        periodCode = 'CUSTOM';
+        fromDate = range.start;
+        toDate = range.end;
+      }
+    }
+
+    final all = await ReportDataService.fetchInventory(
+      lowStockOnly: true,
+      period: periodCode,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+    final items = isAllTime ? all : ReportDataService.updatedInRange(all, range);
     final outCount = items.where((i) => i.stockQuantity <= 0).length;
 
     return [
@@ -214,7 +270,9 @@ class ReportPdfService {
         ('Low Stock', '${items.length - outCount}'),
       ]),
       pw.SizedBox(height: 6),
-      _note('Includes low-stock products updated during the selected period.'),
+      _note(isAllTime
+          ? 'Actionable shortage report: all products at or below minimum stock threshold.'
+          : 'Includes low-stock products updated during the selected period.'),
       pw.SizedBox(height: 12),
       _sectionTitle('Actionable Items (${items.length})'),
       pw.SizedBox(height: 6),

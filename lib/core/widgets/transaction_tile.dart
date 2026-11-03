@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/stock_movement.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_utils.dart';
+import '../../screens/history/widgets/movement_detail_card.dart';
 
 /// Reusable Transaction / Movement Tile matching the modern 16px card & pill aesthetic
 class TransactionTile extends StatelessWidget {
@@ -50,7 +51,8 @@ class TransactionTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: onTap ??
+              () => MovementDetailCard.showMovementDetailSheet(context, movement),
           borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -105,6 +107,37 @@ class TransactionTile extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (!isIn && movement.reason != null) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (movement.reason == StockOutReason.damaged
+                                        ? AppColors.danger
+                                        : movement.reason == StockOutReason.other
+                                            ? AppColors.warning
+                                            : AppColors.inStock)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(AppTheme.pillRadius),
+                              ),
+                              child: Text(
+                                movement.reason == StockOutReason.damaged
+                                    ? 'DAMAGE'
+                                    : movement.reason == StockOutReason.other
+                                        ? 'OTHER'
+                                        : 'SALE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: movement.reason == StockOutReason.damaged
+                                      ? AppColors.danger
+                                      : movement.reason == StockOutReason.other
+                                          ? AppColors.warning
+                                          : AppColors.inStock,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -117,6 +150,64 @@ class TransactionTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (isIn && movement.supplierName != null && movement.supplierName!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.storefront_outlined, size: 12, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Supplier: ${movement.supplierName}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (!isIn && movement.customerName != null && movement.customerName!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 12, color: AppColors.chartOut),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Customer: ${movement.customerName}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.chartOut,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (isIn && movement.unitCost != null && movement.unitCost! > 0) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.attach_money_rounded, size: 12, color: AppColors.chartIn),
+                            const SizedBox(width: 2),
+                            Text(
+                              'Unit Cost: ${AppUtils.formatCurrency(movement.unitCost!)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.chartIn,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       if (movement.stockBefore != null && movement.stockAfter != null) ...[
                         const SizedBox(height: 2),
                         Text(

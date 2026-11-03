@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -390,7 +390,18 @@ class _ChangePasswordScreenState extends State<_ChangePasswordScreen> {
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _newCtrl.addListener(_onPasswordChanged);
+  }
+
+  void _onPasswordChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _newCtrl.removeListener(_onPasswordChanged);
     _currentCtrl.dispose();
     _newCtrl.dispose();
     _confirmCtrl.dispose();
@@ -456,15 +467,13 @@ class _ChangePasswordScreenState extends State<_ChangePasswordScreen> {
             _PasswordField(
               controller: _newCtrl,
               label: 'New Password',
-              hint: 'At least 6 characters',
+              hint: 'At least 8 characters with complexity',
               obscure: _obscureNew,
               onToggle: () => setState(() => _obscureNew = !_obscureNew),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'New password is required';
-                if (v.length < 6) return 'Minimum 6 characters required';
-                return null;
-              },
+              validator: (v) => AppUtils.validateNewPassword(v, _currentCtrl.text),
             ),
+            const SizedBox(height: 8),
+            _PasswordChecklistBox(password: _newCtrl.text),
             const SizedBox(height: 14),
             _PasswordField(
               controller: _confirmCtrl,
@@ -472,11 +481,7 @@ class _ChangePasswordScreenState extends State<_ChangePasswordScreen> {
               hint: 'Re-enter your new password',
               obscure: _obscureConfirm,
               onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Please confirm new password';
-                if (v != _newCtrl.text) return 'Passwords do not match';
-                return null;
-              },
+              validator: (v) => AppUtils.validateConfirmPassword(v, _newCtrl.text),
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
@@ -534,6 +539,79 @@ class _PasswordField extends StatelessWidget {
         ),
       ),
       validator: validator,
+    );
+  }
+}
+
+class _PasswordChecklistBox extends StatelessWidget {
+  final String password;
+  const _PasswordChecklistBox({required this.password});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasMinLength = password.length >= 8;
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(password);
+    final hasLower = RegExp(r'[a-z]').hasMatch(password);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(password);
+    final hasSpecial = RegExp(r'[!@#\$%^&*(),.?":{}|<>\-_+=~`]').hasMatch(password);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'New password requirements:',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _ChecklistRow(label: 'At least 8 characters', met: hasMinLength),
+          _ChecklistRow(label: 'At least 1 uppercase letter (A-Z)', met: hasUpper),
+          _ChecklistRow(label: 'At least 1 lowercase letter (a-z)', met: hasLower),
+          _ChecklistRow(label: 'At least 1 number (0-9)', met: hasDigit),
+          _ChecklistRow(label: 'At least 1 special character (!@#\$%&*)', met: hasSpecial),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChecklistRow extends StatelessWidget {
+  final String label;
+  final bool met;
+  const _ChecklistRow({required this.label, required this.met});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.circle_outlined,
+            size: 14,
+            color: met ? AppColors.inStock : AppColors.muted,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: met ? AppColors.inStock : AppColors.secondaryText,
+              fontWeight: met ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

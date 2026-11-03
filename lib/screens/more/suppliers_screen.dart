@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/supplier_provider.dart';
+import '../../providers/product_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../../models/supplier.dart';
@@ -26,6 +27,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final prov = context.read<SupplierProvider>();
       if (prov.allSuppliers.isEmpty) prov.fetchSuppliers();
+      final prodProv = context.read<ProductProvider>();
+      if (prodProv.allProducts.isEmpty) prodProv.fetchProducts();
     });
   }
 
@@ -40,6 +43,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     final auth = context.watch<AuthProvider>();
     final canManageSuppliers = auth.user?.canManageSuppliers ?? true;
     final prov = context.watch<SupplierProvider>();
+    final prodProv = context.watch<ProductProvider>();
     final allSuppliers = prov.suppliers;
 
     final suppliers = allSuppliers.where((s) {
@@ -145,8 +149,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                                 itemCount: suppliers.length,
                                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                                 itemBuilder: (_, i) {
-                      final s = suppliers[i];
-                      return Card(
+                                  final s = suppliers[i];
+                                  final productCount = prodProv.allProducts
+                                      .where((p) => p.supplierId == s.id)
+                                      .length;
+                                  return Card(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
@@ -270,6 +277,21 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                                             ],
                                           ),
                                         ],
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.inventory_2_outlined,
+                                                size: 13, color: AppColors.grey500),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '$productCount product${productCount == 1 ? "" : "s"} supplied',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.secondaryText,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -317,24 +339,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                                             size: 16, color: AppColors.danger),
                                         label: const Text('Delete',
                                             style: TextStyle(color: AppColors.danger)),
-                                        onPressed: () async {
-                                          final confirmed = await ConfirmDialog.show(
-                                            context,
-                                            title: 'Delete Supplier',
-                                            message:
-                                                'Delete "${s.name}"? Products supplied by this vendor will remain in the catalog.',
-                                            confirmLabel: 'Delete',
-                                            confirmColor: AppColors.danger,
-                                          );
-                                          if (confirmed && context.mounted) {
-                                            await prov.deleteSupplier(s.id);
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('${s.name} deleted')),
-                                              );
-                                            }
-                                          }
-                                        },
+                                        onPressed: () =>
+                                            _handleDeleteSupplier(context, s, productCount),
                                       ),
                                     ],
                                   ),
@@ -362,6 +368,92 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
             )
           : null,
     );
+  }
+
+  /// Business Rule Implementation (matching CategoriesScreen):
+  /// If a supplier is being used by products, deletion is blocked
+  /// and the user is guided to soft deactivation instead.
+  Future<void> _handleDeleteSupplier(
+      BuildContext context, Supplier s, int productCount) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.user?.canManageSuppliers != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Staff accounts cannot delete suppliers.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+    final prov = context.read<SupplierProvider>();
+
+    if (productCount > 0) {
+      // Products are using this supplier -> Block deletion & recommend soft deactivation
+      final result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Supplier In Use'),
+          content: Text(
+            'Supplier "${s.name}" has $productCount product(s) linked to it.\n\n'
+            'To maintain catalog integrity, soft deactivation is recommended instead of permanent deletion.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.pause_circle_outline, size: 18),
+              label: const Text('Soft Deactivate'),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+              onPressed: () => Navigator.pop(ctx, 'deactivate'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'deactivate' && context.mounted) {
+        prov.deactivateSupplier(s.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"${s.name}" has been soft-deactivated.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+    } else {
+      // No products using this supplier -> Allow clean deletion
+      final confirmed = await ConfirmDialog.show(
+        context,
+        title: 'Delete Supplier',
+        message:
+            'Are you sure you want to delete "${s.name}"? This supplier has no products.',
+        confirmLabel: 'Delete',
+        confirmColor: AppColors.danger,
+      );
+
+      if (confirmed && context.mounted) {
+        final success = await prov.deleteSupplier(s.id);
+        if (context.mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Supplier "${s.name}" deleted.'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(prov.error ?? 'Failed to delete supplier'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 
   void _openForm(BuildContext context, Supplier? supplier) {
